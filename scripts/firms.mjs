@@ -213,7 +213,7 @@ if (orphan.length) throw new Error('Firms with no source: ' + orphan.map((r) => 
 
 const out = process.argv[2] ?? 'Firm-List-Import';
 const ws = XLSX.utils.json_to_sheet(rows);
-require_fs().writeFileSync(out + '.csv', XLSX.utils.sheet_to_csv(ws));
+require_fs().writeFileSync(out + '.csv', '\ufeff' + XLSX.utils.sheet_to_csv(ws));
 const wb = XLSX.utils.book_new();
 ws['!cols'] = [{ wch: 44 }, { wch: 30 }, { wch: 6 }, { wch: 10 }, { wch: 40 }, { wch: 30 }, { wch: 12 }, { wch: 20 }, { wch: 90 }];
 XLSX.utils.book_append_sheet(wb, ws, 'Firms to import');

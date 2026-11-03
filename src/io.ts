@@ -174,8 +174,10 @@ const FORMAT_MAP: [RegExp, InteractionType][] = [
 
 /** Import from the original workbook layout, a generic contacts sheet, or LinkedIn Connections.csv. */
 export async function importFile(file: File, d: Data): Promise<ImportResult> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' });
+  // CSV files are read as UTF-8 text (SheetJS would otherwise guess the encoding and garble accents without a BOM).
+  const wb = /\.(csv|tsv|txt)$/i.test(file.name)
+    ? XLSX.read((await file.text()).replace(/^\ufeff/, ''), { type: 'string', cellDates: true, dateNF: 'yyyy-mm-dd' })
+    : XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' });
   const res: ImportResult = { firms: [], people: [], interactions: [], updates: [], skipped: [] };
   const allFirms = () => [...d.firms, ...res.firms];
   const findFirm = (name: string) => {
