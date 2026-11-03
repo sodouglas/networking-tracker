@@ -5,7 +5,8 @@ const crypto = require('crypto');
 const assert = require('assert');
 const src = fs.readFileSync(__dirname + '/Code.gs', 'utf8');
 
-function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123' } = {}) {
+function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetchCode = 200 } = {}) {
+  let lastHeaders = null; const logs = [];
   const props = { FOLDER_ID: 'F1', ALLOWED_EMAILS: 'friend@gmail.com, owner@gmail.com', GITHUB_REPO: 'me/repo' };
   const cache = {};
   let fetches = 0;
@@ -52,8 +53,9 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123' } = {}
       computeDigest: (alg, t) => [...crypto.createHash('md5').update(t, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
       formatDate: () => '2026-11-03',
     },
-    CacheService: { getScriptCache: () => ({ get: (k) => cache[k] ?? null, put: (k, v) => { cache[k] = v; } }) },
-    UrlFetchApp: { fetch: (url) => { fetches++; assert(url.includes('/repos/me/repo/commits/main')); return { getResponseCode: () => 200, getContentText: () => fetchSha + '\n' }; } },
+    CacheService: { getScriptCache: () => ({ get: (k) => cache[k] ?? null, put: (k, v, ttl) => { cache[k] = v; cache['ttl:' + k] = ttl; }, remove: (k) => { delete cache[k]; } }) },
+    console: { log: (m) => logs.push(m), warn: (m) => logs.push(m) },
+    UrlFetchApp: { fetch: (url, opts) => { fetches++; lastHeaders = opts && opts.headers; assert(url.includes('/repos/me/repo/commits/main')); return { getResponseCode: () => fetchCode, getContentText: () => (fetchCode === 200 ? fetchSha + '\n' : '{"message":"API rate limit exceeded"}') }; } },
     HtmlService: {
       createHtmlOutput: (h) => ({ html: h, setTitle() { return this; } }),
       createTemplateFromFile: () => ({ evaluate() { return { base: this.base, setTitle() { return this; }, addMetaTag() { return this; } }; } }),
@@ -61,7 +63,7 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123' } = {}
   };
   vm.createContext(sb);
   vm.runInContext(src, sb);
-  return { sb, files, subfolders, sheets, props, get fetches() { return fetches; }, get ssCreated() { return ssCreated; } };
+  return { sb, files, subfolders, sheets, props, cache, logs, get headers() { return lastHeaders; }, get fetches() { return fetches; }, get ssCreated() { return ssCreated; } };
 }
 const md5 = (t) => crypto.createHash('md5').update(t, 'utf8').digest('hex');
 const doc = (n) => JSON.stringify({ people: Array(n).fill({}), firms: [] });
@@ -79,6 +81,18 @@ e = env();
 assert.equal(e.sb.doGet().base, 'https://cdn.jsdelivr.net/gh/me/repo@abc123/release');
 e.sb.doGet();
 assert.equal(e.fetches, 1, 'commit lookup cached');
+// GitHub failing (rate limit): keep the last good commit, retry within a minute, say why in refreshNow
+e = env({ fetchCode: 403 });
+e.props.LAST_REF = 'oldsha1';
+assert.equal(e.sb.doGet().base, 'https://cdn.jsdelivr.net/gh/me/repo@oldsha1/release', 'falls back to last good commit');
+assert(e.cache['ttl:ref'] <= 60, 'failed lookups are retried soon, not after 5 min');
+e.sb.refreshNow();
+assert(/rate limit/.test(e.logs.join(' ')) && /stuck on oldsha1/.test(e.logs.join(' ')), 'refreshNow explains');
+// recovers once GitHub answers; refreshNow drops the cached commit; token is sent when set
+e = env(); e.props.GITHUB_TOKEN = 'tok';
+e.sb.doGet(); assert.equal(e.headers.Authorization, 'Bearer tok');
+assert.equal(e.props.LAST_REF, 'abc123');
+e.sb.refreshNow(); assert.equal(e.fetches, 2); assert(/commit abc123/.test(e.logs.join(' ')));
 console.log('doGet ok');
 
 // load / save / conflict / backup

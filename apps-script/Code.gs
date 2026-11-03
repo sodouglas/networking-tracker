@@ -195,14 +195,47 @@ function assetBase_() {
   const cache = CacheService.getScriptCache();
   let ref = cache.get('ref');
   if (!ref) {
-    try {
-      const res = UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/commits/' + branch,
-        { headers: { Accept: 'application/vnd.github.sha' }, muteHttpExceptions: true });
-      if (res.getResponseCode() === 200) ref = res.getContentText().trim();
-    } catch (e) { /* fall back below */ }
-    ref = ref || props_().getProperty('LAST_REF') || branch;
-    cache.put('ref', ref, 300);
-    if (ref !== branch) props_().setProperty('LAST_REF', ref);
+    const got = latestRef_(repo, branch);
+    if (got.sha) {
+      ref = got.sha;
+      cache.put('ref', ref, 300);
+      props_().setProperty('LAST_REF', ref);
+    } else {
+      // GitHub didn't answer (often a rate limit). Use the last good commit, but look again soon rather than in 5 minutes.
+      console.warn('assetBase_: could not read latest commit (' + got.status + '); using ' + (props_().getProperty('LAST_REF') || branch));
+      ref = props_().getProperty('LAST_REF') || branch;
+      cache.put('ref', ref, 30);
+    }
   }
   return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + ref + '/release';
+}
+
+/** Latest commit SHA of the branch. Optional script property GITHUB_TOKEN (a read-only token) lifts GitHub's rate limit. */
+function latestRef_(repo, branch) {
+  const headers = { Accept: 'application/vnd.github.sha', 'User-Agent': 'networking-tracker' };
+  const token = props_().getProperty('GITHUB_TOKEN');
+  if (token) headers.Authorization = 'Bearer ' + token;
+  try {
+    const res = UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/commits/' + branch, { headers: headers, muteHttpExceptions: true });
+    const code = res.getResponseCode();
+    const text = res.getContentText().trim();
+    return code === 200 && /^[0-9a-f]{6,40}$/.test(text) ? { sha: text, status: code } : { sha: '', status: code + ' ' + text.slice(0, 120) };
+  } catch (e) {
+    return { sha: '', status: String(e) };
+  }
+}
+
+/** Run from the Apps Script editor when an update isn't showing: forgets the cached commit and reports what GitHub says. */
+function refreshNow() {
+  CacheService.getScriptCache().remove('ref');
+  const repo = props_().getProperty('GITHUB_REPO');
+  const branch = props_().getProperty('GITHUB_BRANCH') || 'main';
+  const got = latestRef_(repo, branch);
+  if (got.sha) {
+    props_().setProperty('LAST_REF', got.sha);
+    console.log('OK. The app will load commit ' + got.sha + ' on the next page load.');
+  } else {
+    console.log('GitHub did not return a commit: ' + got.status + '. The app is stuck on ' + (props_().getProperty('LAST_REF') || branch)
+      + '. Add a GITHUB_TOKEN script property (see Web-App-Setup) and run this again.');
+  }
 }
