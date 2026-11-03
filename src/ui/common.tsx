@@ -65,8 +65,8 @@ export function Rating(props: { value: number | null; onChange?: (v: number | nu
 const STATUS_CLS: Record<string, string> = {
   'Prospect': 'grey', 'Outreach sent': 'blue', 'Scheduling': 'amber', 'Spoke': 'green', 'Thanked': 'teal',
   'Keep warm': 'violet', 'No response': 'red', 'Dormant': 'grey',
-  'Not Started': 'grey', 'Researching': 'grey', 'Outreach Sent': 'blue', 'Call Scheduled': 'amber', 'Contacted': 'green',
-  'Applied': 'violet', 'Interview': 'violet', 'Offer': 'teal', 'Declined': 'red', 'Not Pursuing': 'grey',
+  'Not Started': 'grey', 'Researching': 'sky', 'Outreach Sent': 'blue', 'Call Scheduled': 'amber', 'Contacted': 'green',
+  'Applied': 'violet', 'Interview': 'indigo', 'Offer': 'gold', 'Declined': 'red', 'Not Pursuing': 'slate',
 };
 export const Pill = ({ s, small }: { s: PersonStatus | string; small?: boolean }) => <span class={cx('pill', STATUS_CLS[s] ?? 'grey', small && 'sm')}>{s}</span>;
 

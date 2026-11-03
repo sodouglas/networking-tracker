@@ -41,7 +41,7 @@ export function Settings({ data }: { data: Data }) {
   const sample = render('{{signature}}', data, newPerson({ name: 'Jordan Lee' }), []);
 
   return (
-    <div class="page">
+    <div class="page settings">
       <div class="page-head"><h1>Settings</h1></div>
       <div class="cols two">
         <section class="card">

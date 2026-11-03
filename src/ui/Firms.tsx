@@ -10,14 +10,45 @@ import { TaskRow } from './Today';
 
 export const TIER_SUGGESTIONS = ['Seven Sisters', 'Bay Street', 'Vault 10', 'Vault 25', 'V50', 'Boutique', 'Elite US', 'Magic Circle', 'In-house'];
 
+type SortKey = 'name' | 'market' | 'status' | 'interest' | 'people' | 'spoke' | 'impression' | 'last' | 'deadline';
+type Row = { f: Firm; s: ReturnType<typeof firmStats> };
+type Val = string | number | null;
+const SORT_VALUE: Record<SortKey, (r: Row) => Val> = {
+  name: (r) => r.f.name.toLowerCase(),
+  market: (r) => r.f.market || null,
+  status: (r) => FIRM_STATUSES.indexOf(r.f.status as (typeof FIRM_STATUSES)[number]),
+  interest: (r) => r.f.interest ?? null,
+  people: (r) => r.s.peopleCount,
+  spoke: (r) => r.s.spokeCount,
+  impression: (r) => r.s.avgImpression,
+  last: (r) => r.s.lastContact,
+  deadline: (r) => r.s.nextDeadline?.date ?? null,
+};
+// Text columns start A→Z; numeric and date columns start with the biggest / latest first.
+const FIRST_DIR: Record<SortKey, 'asc' | 'desc'> = {
+  name: 'asc', market: 'asc', status: 'asc', interest: 'desc', people: 'desc', spoke: 'desc', impression: 'desc', last: 'desc', deadline: 'asc',
+};
+
 export function FirmsList({ data }: { data: Data }) {
   const [q, setQ] = useState('');
   const [market, setMarket] = useState('');
   const [status, setStatus] = useState('');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'interest', dir: 'desc' });
+  const pick = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: FIRST_DIR[key] }));
+  const sign = sort.dir === 'asc' ? 1 : -1;
   const rows = data.firms.map((f) => ({ f, s: firmStats(data, f) }))
     .filter(({ f }) => (!market || f.market === market) && (!status || f.status === status)
       && (!q || norm([f.name, f.aliases.join(' '), f.practiceAreas, f.notes, f.tiers.join(' '), f.offices, f.market].join(' ')).includes(norm(q))))
-    .sort((a, b) => (b.f.interest ?? 0) - (a.f.interest ?? 0) || a.f.name.localeCompare(b.f.name));
+    .sort((a, b) => {
+      const x = SORT_VALUE[sort.key](a), y = SORT_VALUE[sort.key](b);
+      if (x == null || y == null) return x == null && y == null ? a.f.name.localeCompare(b.f.name) : x == null ? 1 : -1; // empty values always last
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y));
+      return c * sign || a.f.name.localeCompare(b.f.name);
+    });
+  const Th = ({ k, children, num }: { k: SortKey; children: string; num?: boolean }) => (
+    <th class={cx('sortable', num && 'num', sort.key === k && 'on', sort.key === k && sort.dir)} aria-sort={sort.key === k ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      onClick={() => pick(k)}>{children}</th>
+  );
   return (
     <div class="page">
       <div class="page-head">
@@ -31,7 +62,7 @@ export function FirmsList({ data }: { data: Data }) {
       </div>
       {rows.length === 0 ? <Empty>No firms yet.</Empty> : (
         <table class="grid">
-          <thead><tr><th>Firm</th><th>Market</th><th>Status</th><th>Interest</th><th class="num">People</th><th class="num">Spoke</th><th>Impression</th><th>Last contact</th><th>Next deadline</th></tr></thead>
+          <thead><tr><Th k="name">Firm</Th><Th k="market">Market</Th><Th k="status">Status</Th><Th k="interest">Interest</Th><Th k="people" num>People</Th><Th k="spoke" num>Spoke</Th><Th k="impression">Impression</Th><Th k="last">Last contact</Th><Th k="deadline">Next deadline</Th></tr></thead>
           <tbody>
             {rows.map(({ f, s }) => (
               <tr onClick={() => go(`firms/${f.id}`)}>

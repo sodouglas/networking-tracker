@@ -102,6 +102,7 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
         <a href="#/people" class="back">← People</a>
         <h1>{p.name || 'Unnamed'}</h1>
         <Pill s={s} />
+        <span class="small muted">Firm: {firmName(data, p.firmId) || '—'} {p.firmId && <a href={`#/firms/${p.firmId}`}>open firm →</a>}</span>
         <div class="right row-gap">
           <button class="btn ghost" onClick={() => openModal({ kind: 'prep', personId: p.id })}>Prep sheet</button>
           <button class="btn ghost" onClick={() => openModal({ kind: 'compose', personId: p.id })} title={email ? '' : 'No email on file — you can still draft and copy the text'}>Draft message</button>
@@ -124,7 +125,7 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
             <Field label="Title / practice group"><Text value={p.title} onInput={(v) => upd({ title: v })} /></Field>
             <Field label="Grad year"><Text value={p.gradYear ? String(p.gradYear) : ''} inputMode="numeric" onInput={(v) => upd({ gradYear: Number(v) || null })} /></Field>
             <Field label="School"><Text value={p.school} onInput={(v) => upd({ school: v })} placeholder="e.g. McGill" /></Field>
-            <Field label="Connection tags" span={2}><TagInput value={p.tags} onChange={(tags) => upd({ tags })} suggestions={allTags(data)} /></Field>
+            <Field label="Connection tags" span={2} hint="Pick a suggestion or type your own and press Enter. New tags appear in the suggestions and the People filter."><TagInput value={p.tags} onChange={(tags) => upd({ tags })} suggestions={allTags(data)} /></Field>
             <Field label="Email"><Text value={p.email} onInput={(v) => upd({ email: v })} type="email" /></Field>
             <Field label="LinkedIn">
               <div class="with-link"><Text value={p.linkedin} onInput={(v) => upd({ linkedin: v })} />
@@ -178,7 +179,6 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
           </section>
         </div>
       </div>
-      <div class="small muted">Firm: {firmName(data, p.firmId) || '—'} {p.firmId && <a href={`#/firms/${p.firmId}`}>open firm →</a>}</div>
     </div>
   );
 }
