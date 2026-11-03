@@ -67,6 +67,7 @@ export function normalize(raw: any): Data {
   if (!Array.isArray(raw.questions) || !raw.questions.length) d.questions = base.questions;
   d.firms = d.firms.map((f) => ({ aliases: [], kind: 'firm', market: '', offices: '', size: '', tiers: [], practiceAreas: '', howFound: '', status: 'Researching', interest: null, notes: '', links: [], ...(f as any) }));
   d.people = d.people.map((p) => ({ firmId: null, pastEmployers: '', role: '', title: '', gradYear: null, school: '', tags: [], email: '', linkedin: '', otherChannel: '', status: 'Prospect', statusManual: false, whereMet: '', personal: '', notes: '', createdAt: today(), ...(p as any) }));
+  d.people.forEach((p) => { delete (p as any).flag; }); // follow-up flag was removed; Tasks cover it
   d.interactions = d.interactions.map((i) => ({ summary: '', takeaways: '', impression: null, ...(i as any) }));
   return d;
 }

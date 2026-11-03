@@ -69,10 +69,6 @@ main { min-width: 0; }
 .stack { display: flex; flex-direction: column; min-width: 0; }
 .empty { color: var(--muted); font-size: 12px; padding: 8px 0; }
 .banner { background: var(--accent-2); border: 1px solid #d3deea; border-radius: 5px; padding: 7px 10px; margin-bottom: 10px; font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.flag-mark { color: var(--red); margin: 0 4px 0 6px; font-size: 12px; }
-.row .flag-mark:first-child { margin-left: 0; }
-.banner.flagbar { background: #fbeeec; border-color: #efcdc8; } .banner.flagbar input { min-width: 200px; }
-.card.flagged { border-color: #efcdc8; }
 .banner.warn { background: #fdf6e7; border-color: #f0dfb5; }
 .span2 { grid-column: 1 / -1; }
 

@@ -122,7 +122,7 @@ export function metrics(data: Data) {
   }
   const rem = reminders(data);
   const owedTasks = data.tasks.filter((t) => taskActive(data, t) && t.direction === 'owe' && (!t.due || t.due <= today()));
-  const followUpsOwed = rem.filter((r) => r.kind !== 'no-reply' && r.due <= addDays(today(), 1)).length + owedTasks.length + data.people.filter((p) => p.flag).length;
+  const followUpsOwed = rem.filter((r) => r.kind !== 'no-reply' && r.due <= addDays(today(), 1)).length + owedTasks.length;
 
   const spokeFirm = new Set<ID>();
   for (const i of data.interactions) {

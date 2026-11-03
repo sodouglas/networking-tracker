@@ -72,7 +72,6 @@ export interface Person {
   personal: string;
   notes: string;
   review?: string;
-  flag?: { note: string; at: string }; // your own "follow up on this" reminder; shows on Today until cleared
   createdAt: string;
 }
 

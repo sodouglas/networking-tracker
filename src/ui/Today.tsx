@@ -17,7 +17,6 @@ export function Today({ data }: { data: Data }) {
   const owed = tasks.filter((x) => x.direction === 'owed');
   const upcoming = data.deadlines.filter((d) => d.date >= t && d.date <= addDays(t, 75)).sort((a, b) => a.date.localeCompare(b.date));
   const review = [...data.people.filter((p) => p.review), ...data.firms.filter((f) => f.review)];
-  const flagged = data.people.filter((p) => p.flag).sort((a, b) => a.flag!.at.localeCompare(b.flag!.at));
   const person = (id?: string | null) => data.people.find((p) => p.id === id);
   const trend = m.outThis - m.outLast;
 
@@ -27,22 +26,6 @@ export function Today({ data }: { data: Data }) {
         <h1>Today</h1>
         <span class="muted">{new Date().toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
       </div>
-
-      {flagged.length > 0 && (
-        <section class="card flagged">
-          <h3>Flagged to follow up <span class="count">{flagged.length}</span></h3>
-          {flagged.map((p) => (
-            <div class="row">
-              <span class="flag-mark">⚑</span>
-              <a class="strong" href={`#/people/${p.id}`}>{p.name}</a>
-              <span class="muted small">{shortFirm(data, p.firmId)}</span>
-              <span class="grow">{p.flag!.note || <span class="muted">no note</span>}</span>
-              <span class="muted small">{fmtDate(p.flag!.at.slice(0, 10))}</span>
-              <button class="btn sm ghost" onClick={() => actions.savePerson({ ...p, flag: undefined })}>Done</button>
-            </div>
-          ))}
-        </section>
-      )}
 
       <section class="stats">
         <div class="stat">
