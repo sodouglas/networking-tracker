@@ -5,6 +5,8 @@ import { actions } from '../store';
 import { addDays, fmtDate, relDays, today, cx } from '../util';
 import { go, openModal } from './nav';
 import { Empty, Pill } from './common';
+import { byWhen, timeLabel } from '../meetings';
+import { INTERACTION_TYPES } from '../types';
 
 export function Today({ data }: { data: Data }) {
   const m = metrics(data);
@@ -17,6 +19,7 @@ export function Today({ data }: { data: Data }) {
   const owed = tasks.filter((x) => x.direction === 'owed');
   const upcoming = data.deadlines.filter((d) => d.date >= t && d.date <= addDays(t, 75)).sort((a, b) => a.date.localeCompare(b.date));
   const review = [...data.people.filter((p) => p.review), ...data.firms.filter((f) => f.review)];
+  const booked = [...data.meetings].sort(byWhen).filter((m) => m.date <= addDays(t, 14));
   const person = (id?: string | null) => data.people.find((p) => p.id === id);
   const trend = m.outThis - m.outLast;
 
@@ -82,6 +85,27 @@ export function Today({ data }: { data: Data }) {
             })}
           </>}
         </section>
+
+        {booked.length > 0 && (
+          <section class="card">
+            <h3>Scheduled conversations <span class="count">{booked.length}</span><button class="btn sm ghost right" onClick={() => openModal({ kind: 'meeting' })}>+ Schedule</button></h3>
+            {booked.map((m) => {
+              const p = person(m.personId);
+              if (!p) return null;
+              const past = m.date < t;
+              return (
+                <div class="row">
+                  <div class="grow">
+                    <a href={`#/people/${p.id}`} class="strong">{p.name}</a> <span class="muted">· {INTERACTION_TYPES[m.type]}{m.where ? ` · ${m.where.replace(/^https?:\/\//, '').slice(0, 30)}` : ''}</span>
+                    <div class="small muted">{relDays(m.date)}{m.time ? ` · ${timeLabel(m.time)}` : ''}{past ? ' · happened? log it' : ''}</div>
+                  </div>
+                  <button class={cx('btn sm', !past && 'ghost')} onClick={() => openModal({ kind: 'log', meetingId: m.id })}>{past ? 'Log it' : 'Log'}</button>
+                  <button class="btn sm ghost" onClick={() => openModal({ kind: 'meeting', meetingId: m.id })}>Edit</button>
+                </div>
+              );
+            })}
+          </section>
+        )}
 
         <section class="card">
           <h3>Tasks <span class="count">{tasks.length}</span><button class="btn sm ghost right" onClick={() => openModal({ kind: 'task' })}>+ Task</button></h3>

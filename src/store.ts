@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { Data, Firm, Person, Interaction, Task, Deadline, ID } from './types';
+import type { Data, Firm, Person, Interaction, Task, Deadline, Meeting, ID } from './types';
 import { uid, today } from './util';
 import { DEFAULT_TEMPLATES, DEFAULT_QUESTIONS, DEFAULT_SETTINGS } from './seed';
 import { derivedStatus, interactionsFor } from './logic';
@@ -31,7 +31,7 @@ interface State {
 
 export function emptyData(): Data {
   return {
-    version: 1, firms: [], people: [], interactions: [], tasks: [], deadlines: [],
+    version: 1, firms: [], people: [], interactions: [], tasks: [], deadlines: [], meetings: [],
     templates: structuredClone(DEFAULT_TEMPLATES), questions: structuredClone(DEFAULT_QUESTIONS),
     settings: { ...DEFAULT_SETTINGS }, updatedAt: new Date().toISOString(),
   };
@@ -62,7 +62,7 @@ export function useStore() {
 export function normalize(raw: any): Data {
   const base = emptyData();
   const d: Data = { ...base, ...raw, settings: { ...base.settings, ...(raw.settings ?? {}) } };
-  for (const k of ['firms', 'people', 'interactions', 'tasks', 'deadlines'] as const) (d as any)[k] = Array.isArray(raw[k]) ? raw[k] : [];
+  for (const k of ['firms', 'people', 'interactions', 'tasks', 'deadlines', 'meetings'] as const) (d as any)[k] = Array.isArray(raw[k]) ? raw[k] : [];
   if (!Array.isArray(raw.templates) || !raw.templates.length) d.templates = base.templates;
   if (!Array.isArray(raw.questions) || !raw.questions.length) d.questions = base.questions;
   d.firms = d.firms.map((f) => ({ aliases: [], kind: 'firm', market: '', offices: '', size: '', tiers: [], practiceAreas: '', howFound: '', status: 'Researching', interest: null, notes: '', links: [], ...(f as any) }));
@@ -94,6 +94,8 @@ export const actions = {
   savePerson(p: Person) { commit((d) => upsert(d.people, p)); },
   saveTask(t: Task) { commit((d) => upsert(d.tasks, t)); },
   saveDeadline(x: Deadline) { commit((d) => upsert(d.deadlines, x)); },
+  saveMeeting(x: Meeting) { commit((d) => upsert(d.meetings, x)); },
+  deleteMeeting(id: ID) { commit((d) => { d.meetings = d.meetings.filter((x) => x.id !== id); }); },
   deleteDeadline(id: ID) { commit((d) => { d.deadlines = d.deadlines.filter((x) => x.id !== id); }); },
   deleteTask(id: ID) { commit((d) => { d.tasks = d.tasks.filter((x) => x.id !== id); }); },
   toggleTask(id: ID) {
@@ -116,6 +118,7 @@ export const actions = {
       d.people = d.people.filter((x) => x.id !== id);
       d.interactions = d.interactions.filter((x) => x.personId !== id);
       d.tasks = d.tasks.filter((x) => x.personId !== id);
+      d.meetings = d.meetings.filter((x) => x.personId !== id);
     });
   },
   deleteFirm(id: ID) {
@@ -138,6 +141,7 @@ export const actions = {
       for (const k of ['notes', 'personal'] as const) if (from[k] && into[k] !== from[k] && !into[k].includes(from[k])) into[k] = [into[k], from[k]].filter(Boolean).join('\n');
       d.interactions.forEach((i) => { if (i.personId === fromId) i.personId = intoId; });
       d.tasks.forEach((t) => { if (t.personId === fromId) t.personId = intoId; });
+      d.meetings.forEach((m) => { if (m.personId === fromId) m.personId = intoId; });
       d.people = d.people.filter((p) => p.id !== fromId);
     });
   },

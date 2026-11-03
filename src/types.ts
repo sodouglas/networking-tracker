@@ -113,6 +113,18 @@ export interface Deadline {
   notes: string;
 }
 
+/** A conversation you've booked but haven't had yet. Logging it turns it into an Interaction. */
+export const MEETING_TYPES: InteractionType[] = ['call', 'video', 'coffee', 'in-person'];
+export interface Meeting {
+  id: ID;
+  personId: ID;
+  date: string;   // YYYY-MM-DD
+  time: string;   // HH:MM (24h), or '' for no set time
+  type: InteractionType;
+  where: string;  // Zoom link, phone number, café…
+  notes: string;
+}
+
 export interface Template {
   id: ID;
   name: string;
@@ -144,6 +156,7 @@ export interface Data {
   interactions: Interaction[];
   tasks: Task[];
   deadlines: Deadline[];
+  meetings: Meeting[];
   templates: Template[];
   questions: Question[];
   settings: Settings;

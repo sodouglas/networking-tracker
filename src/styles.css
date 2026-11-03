@@ -218,9 +218,14 @@ ul.tight { margin: 4px 0; padding-left: 16px; } ul.tight li { margin: 2px 0; }
 .day .num { font-size: 11px; color: var(--ink-2); margin-bottom: 2px; }
 .ev { display: block; font-size: 11px; padding: 1px 4px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .ev:hover { text-decoration: none; filter: brightness(.96); }
+.ev.meeting { background: #dbeaf6; color: #1d4f7a; font-weight: 550; }
+button.ev { border: 0; width: 100%; text-align: left; font: inherit; font-size: 11px; cursor: pointer; }
+.day { position: relative; }
+.day-add { position: absolute; top: 2px; right: 3px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 3px; opacity: 0; border-radius: 3px; }
+.day:hover .day-add, .day-add:focus-visible { opacity: 1; } .day-add:hover { color: var(--accent); background: var(--accent-2); }
 .ev.deadline { background: #f8e6e4; } .ev.task { background: #eee8f6; }
 .ev.follow { background: #fbf0dc; } .ev.past { background: var(--line-2); color: var(--ink-2); }
-.legend .deadline { background: var(--red); } .legend .task { background: var(--violet); } .legend .follow { background: var(--amber); } .legend .past { background: var(--grey-dot); }
+.legend .meeting { background: var(--blue); } .legend .deadline { background: var(--red); } .legend .task { background: var(--violet); } .legend .follow { background: var(--amber); } .legend .past { background: var(--grey-dot); }
 .more { font-size: 10px; color: var(--muted); }
 
 /* library */

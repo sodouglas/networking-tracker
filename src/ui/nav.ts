@@ -28,7 +28,8 @@ export function useRoute() {
 // ---- global modals ----
 export type ModalState =
   | null
-  | { kind: 'log'; personId?: ID; interactionId?: ID }
+  | { kind: 'log'; personId?: ID; interactionId?: ID; meetingId?: ID }
+  | { kind: 'meeting'; meetingId?: ID; personId?: ID; date?: string }
   | { kind: 'compose'; personId: ID; templateId?: string }
   | { kind: 'merge'; type: 'person' | 'firm'; id: ID }
   | { kind: 'prep'; personId: ID }

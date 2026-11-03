@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'preact/hooks';
-import type { Data, Interaction, InteractionType, Task, FirmStatus } from '../types';
-import { INTERACTION_TYPES, FIRM_STATUSES, CONVERSATION_TYPES } from '../types';
+import type { Data, Interaction, InteractionType, Meeting, Task, FirmStatus } from '../types';
+import { INTERACTION_TYPES, FIRM_STATUSES, CONVERSATION_TYPES, MEETING_TYPES } from '../types';
+import { gcalUrl } from '../meetings';
 import { actions, newFirm, newPerson } from '../store';
 import { interactionsFor, firmStats, shortFirm, firmName, effectiveStatus, taskActive } from '../logic';
 import { emailOf, gmailUrl, renderTemplate, snippets } from '../compose';
 import { today, uid, fmtDate, similar } from '../util';
-import { closeModal, go, toast, type ModalState } from './nav';
+import { closeModal, go, openModal, toast, type ModalState } from './nav';
 import { Area, Combo, Field, Modal, Pill, Rating, Select, Text, dupFirms, dupPeople, firmItems, personItems } from './common';
 
 export function Modals({ data, m }: { data: Data; m: ModalState }) {
   if (!m) return null;
   switch (m.kind) {
-    case 'log': return <QuickLog data={data} personId={m.personId} interactionId={m.interactionId} />;
+    case 'log': return <QuickLog data={data} personId={m.personId} interactionId={m.interactionId} meetingId={m.meetingId} />;
+    case 'meeting': return <MeetingEditor data={data} meetingId={m.meetingId} personId={m.personId} date={m.date} />;
     case 'compose': return <Compose data={data} personId={m.personId} templateId={m.templateId} />;
     case 'merge': return <Merge data={data} type={m.type} id={m.id} />;
     case 'prep': return <Prep data={data} personId={m.personId} />;
@@ -23,9 +25,12 @@ export function Modals({ data, m }: { data: Data; m: ModalState }) {
 
 const TYPE_OPTIONS = (Object.keys(INTERACTION_TYPES) as InteractionType[]).map((k) => ({ value: k, label: INTERACTION_TYPES[k] }));
 
-function QuickLog({ data, personId, interactionId }: { data: Data; personId?: string; interactionId?: string }) {
+function QuickLog({ data, personId, interactionId, meetingId }: { data: Data; personId?: string; interactionId?: string; meetingId?: string }) {
   const existing = data.interactions.find((i) => i.id === interactionId);
-  const [i, setI] = useState<Interaction>(existing ?? { id: uid(), personId: personId ?? '', date: today(), type: 'email-out', summary: '', takeaways: '', impression: null });
+  const booked = data.meetings.find((m) => m.id === meetingId); // logging a scheduled conversation that has now happened
+  const [i, setI] = useState<Interaction>(existing ?? (booked
+    ? { id: uid(), personId: booked.personId, date: booked.date, type: booked.type, summary: '', takeaways: '', impression: null }
+    : { id: uid(), personId: personId ?? '', date: today(), type: 'email-out', summary: '', takeaways: '', impression: null }));
   const [newName, setNewName] = useState('');
   const [newFirmId, setNewFirmId] = useState<string | null>(null);
   const [newFirmName, setNewFirmName] = useState('');
@@ -50,6 +55,7 @@ function QuickLog({ data, personId, interactionId }: { data: Data; personId?: st
     if (task.text.trim()) {
       actions.saveTask({ id: uid(), text: task.text.trim(), personId: pid, firmId, direction: task.direction, due: task.due || null, trigger: null, done: false, createdAt: today() });
     }
+    if (booked) actions.deleteMeeting(booked.id);
     toast(existing ? 'Interaction updated' : 'Logged');
     closeModal();
   };
@@ -295,3 +301,34 @@ function NewFirm({ data }: { data: Data }) {
 }
 
 export { firmName };
+
+function MeetingEditor({ data, meetingId, personId, date }: { data: Data; meetingId?: string; personId?: string; date?: string }) {
+  const existing = data.meetings.find((m) => m.id === meetingId);
+  const [m, setM] = useState<Meeting>(existing ?? { id: uid(), personId: personId ?? '', date: date ?? today(), time: '', type: 'call', where: '', notes: '' });
+  const up = (p: Partial<Meeting>) => setM({ ...m, ...p });
+  const valid = !!m.personId && !!m.date;
+  const submit = () => { if (!valid) return; actions.saveMeeting(m); toast(existing ? 'Updated' : 'Scheduled'); closeModal(); };
+  return (
+    <Modal title={existing ? 'Edit scheduled conversation' : 'Schedule a conversation'}
+      footer={<>
+        {existing && <button class="btn ghost danger" onClick={() => { actions.deleteMeeting(m.id); closeModal(); }}>Delete</button>}
+        {existing && <a class="btn ghost" href={gcalUrl(data, m)} target="_blank" rel="noreferrer" title="Opens Google Calendar with this filled in">Add to Google Calendar ↗</a>}
+        <span class="small muted right">⌘↵ to save</span>
+        <button class="btn ghost" onClick={closeModal}>Cancel</button>
+        {existing && <button class="btn ghost" onClick={() => { actions.saveMeeting(m); openModalLog(m.id); }}>It happened — log it</button>}
+        <button class="btn primary" disabled={!valid} onClick={submit}>Save</button>
+      </>}>
+      <div class="form" onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); }}>
+        <Field label="Person" span={2}>
+          <Combo items={personItems(data)} value={m.personId || null} onChange={(id) => up({ personId: id ?? '' })} placeholder="Type a name…" autoFocus={!personId && !existing} />
+        </Field>
+        <Field label="Type"><Select value={m.type} options={MEETING_TYPES.map((k) => ({ value: k, label: INTERACTION_TYPES[k] }))} onChange={(type) => up({ type })} /></Field>
+        <Field label="Date"><input type="date" value={m.date} max="2100-01-01" onInput={(e) => up({ date: (e.target as HTMLInputElement).value })} /></Field>
+        <Field label="Time" hint="Optional. Your local time."><input type="time" value={m.time} onInput={(e) => up({ time: (e.target as HTMLInputElement).value })} /></Field>
+        <Field label="Where / link" hint="Zoom link, phone number, café…"><Text value={m.where} onInput={(where) => up({ where })} placeholder="https://zoom.us/j/…" /></Field>
+        <Field label="Notes" span={2}><Area value={m.notes} onInput={(notes) => up({ notes })} rows={2} /></Field>
+      </div>
+    </Modal>
+  );
+}
+const openModalLog = (meetingId: string) => openModal({ kind: 'log', meetingId });

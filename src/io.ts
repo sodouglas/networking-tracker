@@ -2,7 +2,8 @@ import * as XLSX from 'xlsx';
 import type { Data, Firm, Person, Interaction, InteractionType } from './types';
 import { INTERACTION_TYPES, FIRM_STATUSES } from './types';
 import { effectiveStatus, firmName, reminders, taskActive, metrics, firmStats } from './logic';
-import { download, isoDate, lev, norm, similar, today, uid } from './util';
+import { addDays, download, isoDate, lev, norm, similar, today, uid } from './util';
+import { byWhen, meetingEnd, meetingStart, meetingTitle } from './meetings';
 import { newFirm, newPerson } from './store';
 
 // ---------- exports ----------
@@ -38,6 +39,10 @@ function tables(d: Data) {
       Direction: t.direction === 'owe' ? 'I owe' : 'Owed to me',
       Due: t.due ?? '', Trigger: t.trigger ? `When ${firmName(d, t.trigger.firmId)} → ${t.trigger.status}` : '',
       Done: t.done ? 'Y' : '',
+    })),
+    Meetings: [...d.meetings].sort(byWhen).map((m) => ({
+      Date: m.date, Time: m.time, Person: person(m.personId), Firm: firmName(d, d.people.find((p) => p.id === m.personId)?.firmId),
+      Type: INTERACTION_TYPES[m.type], Where: m.where, Notes: m.notes,
     })),
     Deadlines: [...d.deadlines].sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({
       Date: x.date, Time: x.time ?? '', Name: x.name, Program: x.program, Firm: firmName(d, x.firmId),
@@ -91,7 +96,7 @@ export function exportCsv(d: Data, table: keyof ReturnType<typeof tables>) {
   const ws = XLSX.utils.json_to_sheet(tables(d)[table]);
   download(`${table.toLowerCase()}-${today()}.csv`, '\ufeff' + XLSX.utils.sheet_to_csv(ws), 'text/csv');
 }
-export const CSV_TABLES = ['Firms', 'People', 'Interactions', 'Tasks', 'Deadlines'] as const;
+export const CSV_TABLES = ['Firms', 'People', 'Interactions', 'Meetings', 'Tasks', 'Deadlines'] as const;
 
 const icsEsc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (c) => '\\' + c);
 const icsDate = (s: string) => s.replace(/-/g, '');
@@ -111,6 +116,16 @@ export function exportIcs(d: Data) {
       `DTEND;VALUE=DATE:${icsDate(next)}`, fold(`SUMMARY:${icsEsc(title)}`), desc ? fold(`DESCRIPTION:${icsEsc(desc)}`) : '',
       'END:VEVENT'].filter(Boolean).join('\r\n'));
   };
+  for (const m of d.meetings) {
+    const lines = ['BEGIN:VEVENT', `UID:meeting-${m.id}@networking-tracker`, `DTSTAMP:${stamp}`];
+    if (m.time) lines.push(`DTSTART:${meetingStart(m)}`, `DTEND:${meetingEnd(m)}`);
+    else lines.push(`DTSTART;VALUE=DATE:${icsDate(m.date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(m.date, 1))}`);
+    lines.push(fold(`SUMMARY:${icsEsc(meetingTitle(d, m))}`));
+    if (m.where) lines.push(fold(`LOCATION:${icsEsc(m.where)}`));
+    if (m.notes) lines.push(fold(`DESCRIPTION:${icsEsc(m.notes)}`));
+    lines.push('END:VEVENT');
+    ev.push(lines.join('\r\n'));
+  }
   for (const x of d.deadlines) add(`dl-${x.id}`, x.date, `${x.verified ? '' : '[verify] '}${x.name}`, [x.time, x.notes, x.source].filter(Boolean).join('\n'));
   for (const t of d.tasks) if (t.due && taskActive(d, t)) add(`task-${t.id}`, t.due, `${t.direction === 'owe' ? 'To do' : 'Waiting on'}: ${t.text}`);
   for (const r of reminders(d)) {

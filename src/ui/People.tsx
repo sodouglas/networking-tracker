@@ -3,7 +3,8 @@ import type { Data, Person } from '../types';
 import { PERSON_STATUSES, ROLES, INTERACTION_TYPES, CONVERSATION_TYPES } from '../types';
 import { effectiveStatus, interactionsFor, lastInteraction, shortFirm, firmName, derivedStatus } from '../logic';
 import { actions } from '../store';
-import { fmtDate, norm, relDays, cx } from '../util';
+import { fmtDate, norm, relDays, cx, today } from '../util';
+import { byWhen, timeLabel } from '../meetings';
 import { exportVcf } from '../io';
 import { emailOf } from '../compose';
 import { go, hashQuery, openModal } from './nav';
@@ -94,6 +95,7 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
   const auto = derivedStatus(interactionsFor(data, p.id), data.settings.noReplyDays);
   const tasks = data.tasks.filter((t) => t.personId === p.id).sort((a, b) => Number(a.done) - Number(b.done));
   const email = emailOf(p);
+  const booked = data.meetings.filter((m) => m.personId === p.id).sort(byWhen);
   const dups = dupPeople(data, p.name, p.id);
 
   return (
@@ -104,6 +106,7 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
         <Pill s={s} />
         <span class="small muted">Firm: {firmName(data, p.firmId) || '—'} {p.firmId && <a href={`#/firms/${p.firmId}`}>open firm →</a>}</span>
         <div class="right row-gap">
+          <button class="btn ghost" onClick={() => openModal({ kind: 'meeting', personId: p.id })}>Schedule</button>
           <button class="btn ghost" onClick={() => openModal({ kind: 'prep', personId: p.id })}>Prep sheet</button>
           <button class="btn ghost" onClick={() => openModal({ kind: 'compose', personId: p.id })} title={email ? '' : 'No email on file — you can still draft and copy the text'}>Draft message</button>
           <button class="btn primary" onClick={() => openModal({ kind: 'log', personId: p.id })}>Log interaction</button>
@@ -152,6 +155,18 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
         </section>
 
         <div class="stack">
+          {booked.length > 0 && (
+            <section class="card">
+              <h3>Scheduled</h3>
+              {booked.map((m) => (
+                <div class="row">
+                  <div class="grow"><span class="strong">{fmtDate(m.date)}</span>{m.time && <span class="muted"> · {timeLabel(m.time)}</span>} <span class="muted">· {INTERACTION_TYPES[m.type]}{m.where ? ` · ${m.where.slice(0, 40)}` : ''}</span></div>
+                  <button class={cx('btn sm', m.date >= today() && 'ghost')} onClick={() => openModal({ kind: 'log', meetingId: m.id })}>Log it</button>
+                  <button class="btn sm ghost" onClick={() => openModal({ kind: 'meeting', meetingId: m.id })}>Edit</button>
+                </div>
+              ))}
+            </section>
+          )}
           <section class="card">
             <h3>Tasks <button class="btn sm ghost right" onClick={() => openModal({ kind: 'task', personId: p.id, firmId: p.firmId ?? undefined })}>+ Task</button></h3>
             {tasks.length === 0 && <Empty>No tasks.</Empty>}

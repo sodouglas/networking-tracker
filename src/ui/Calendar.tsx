@@ -5,9 +5,11 @@ import { firmName, reminders, taskActive } from '../logic';
 import { actions } from '../store';
 import { isoDate, today, uid, fmtDate, cx } from '../util';
 import { exportIcs } from '../io';
+import { meetingTitle, timeLabel } from '../meetings';
+import { openModal } from './nav';
 import { Area, Combo, Empty, Field, Modal, Text, firmItems } from './common';
 
-interface Ev { date: string; label: string; kind: 'deadline' | 'task' | 'follow' | 'past'; href?: string; unverified?: boolean }
+interface Ev { date: string; label: string; kind: 'deadline' | 'task' | 'follow' | 'past' | 'meeting'; href?: string; unverified?: boolean; open?: () => void }
 
 export function Calendar({ data }: { data: Data }) {
   const now = new Date();
@@ -18,6 +20,7 @@ export function Calendar({ data }: { data: Data }) {
   const evs: Ev[] = [];
   data.deadlines.forEach((d) => evs.push({ date: d.date, label: d.name, kind: 'deadline', unverified: !d.verified }));
   data.tasks.filter((x) => x.due && taskActive(data, x)).forEach((x) => evs.push({ date: x.due!, label: x.text, kind: 'task' }));
+  data.meetings.forEach((m) => evs.push({ date: m.date, kind: 'meeting', label: `${timeLabel(m.time) ? timeLabel(m.time) + ' ' : ''}${meetingTitle(data, m)}`, open: () => openModal({ kind: 'meeting', meetingId: m.id }) }));
   reminders(data).filter((r) => r.kind !== 'no-reply').forEach((r) => {
     const p = data.people.find((x) => x.id === r.personId)!;
     evs.push({ date: r.due < t ? t : r.due, label: `${r.kind === 'thank-you' ? 'Thank' : 'Check in'}: ${p.name}`, kind: 'follow', href: `#/people/${p.id}` });
@@ -39,7 +42,8 @@ export function Calendar({ data }: { data: Data }) {
         <h1>Calendar</h1>
         <div class="right row-gap">
           <button class="btn ghost" onClick={() => exportIcs(data)} title="Deadlines, tasks with dates and follow-ups, for Google or Apple Calendar">Export .ics</button>
-          <button class="btn primary" onClick={() => setEditing({ id: uid(), name: '', program: '', date: t, source: '', verified: false, notes: '', firmId: null })}>+ Deadline</button>
+          <button class="btn primary" onClick={() => openModal({ kind: 'meeting' })} title="Book a call, video chat, coffee or in-person meeting with someone in your list">+ Schedule</button>
+          <button class="btn ghost" onClick={() => setEditing({ id: uid(), name: '', program: '', date: t, source: '', verified: false, notes: '', firmId: null })}>+ Deadline</button>
         </div>
       </div>
       <section class="card">
@@ -48,7 +52,7 @@ export function Calendar({ data }: { data: Data }) {
           <h3>{first.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' })}</h3>
           <button class="btn sm ghost" onClick={() => shift(1)}>›</button>
           <button class="btn sm ghost" onClick={() => setYm({ y: now.getFullYear(), m: now.getMonth() })}>Today</button>
-          <span class="legend right"><i class="deadline" />Deadline <i class="task" />Task <i class="follow" />Follow-up <i class="past" />Logged</span>
+          <span class="legend right"><i class="meeting" />Scheduled <i class="deadline" />Deadline <i class="task" />Task <i class="follow" />Follow-up <i class="past" />Logged</span>
         </div>
         <div class="cal">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div class="dow">{d}</div>)}
@@ -58,7 +62,10 @@ export function Calendar({ data }: { data: Data }) {
             return (
               <div class={cx('day', d.getMonth() !== ym.m && 'other', iso === t && 'today')}>
                 <div class="num">{d.getDate()}</div>
-                {list.slice(0, 4).map((e) => e.href
+                <button class="day-add" title="Schedule a conversation this day" aria-label="Schedule a conversation this day" onClick={() => openModal({ kind: 'meeting', date: iso })}>+</button>
+                {list.slice(0, 4).map((e) => e.open
+                  ? <button class={cx('ev', e.kind)} title={e.label} onClick={e.open}>{e.label}</button>
+                  : e.href
                   ? <a class={cx('ev', e.kind)} href={e.href} title={e.label}>{e.label}</a>
                   : <div class={cx('ev', e.kind)} title={e.label}>{e.unverified ? '◌ ' : ''}{e.label}</div>)}
                 {list.length > 4 && <div class="more">+{list.length - 4} more</div>}
