@@ -68,12 +68,15 @@ export function PeopleList({ data }: { data: Data }) {
           <thead><tr><Th k="name">Name</Th><Th k="firm">Firm</Th><th>Role</th><th>Tags</th><Th k="status">Status</Th><Th k="last">Last contact</Th><th /></tr></thead>
           <tbody>
             {rows.map(({ p, s, last, firm: fn }) => (
-              <tr onClick={() => go(`people/${p.id}`)}>
+              <tr class={ROW_CLS[s]} onClick={() => go(`people/${p.id}`)}>
                 <td class="strong">{p.name}{p.review && <span class="flag" title={p.review}>review</span>}</td>
                 <td>{fn}</td>
                 <td class="muted">{[p.role, p.gradYear && `’${String(p.gradYear).slice(2)}`].filter(Boolean).join(' ')}</td>
                 <td>{p.tags.slice(0, 3).map((t) => <span class="tag sm">{t}</span>)}</td>
-                <td><Pill s={s} small />{p.statusManual && <span class="muted small" title="Set by hand"> ✎</span>}</td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <Select compact value={s} options={PERSON_STATUSES} onChange={(status) => actions.savePerson({ ...p, status, statusManual: true })} />
+                  {p.statusManual && <span class="muted small" title="Set by hand"> ✎</span>}
+                </td>
                 <td class="muted">{last ? <>{fmtDate(last.date)} <span class="small">· {INTERACTION_TYPES[last.type]}</span></> : '—'}</td>
                 <td class="actions" onClick={(e) => e.stopPropagation()}>
                   <button class="btn sm ghost" onClick={() => openModal({ kind: 'log', personId: p.id })}>Log</button>
@@ -86,6 +89,9 @@ export function PeopleList({ data }: { data: Data }) {
     </div>
   );
 }
+
+/** Whole-row tint for the statuses that need a glance. */
+const ROW_CLS: Record<string, string> = { 'Action required': 'row-red', 'Scheduling': 'row-yellow', 'Scheduled': 'row-green' };
 
 export function PersonDetail({ data, id }: { data: Data; id: string }) {
   const p = data.people.find((x) => x.id === id);

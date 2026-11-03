@@ -84,7 +84,7 @@ function listKeys(e: KeyboardEvent, s: { open: boolean; setOpen: (b: boolean) =>
 }
 
 /** Drop-in replacement for <select> with our own list instead of the browser's. */
-export function Select<T extends string>(props: { value: T; options: readonly T[] | { value: T; label: string }[]; onChange: (v: T) => void; blank?: string }) {
+export function Select<T extends string>(props: { value: T; options: readonly T[] | { value: T; label: string }[]; onChange: (v: T) => void; blank?: string; compact?: boolean }) {
   const items: MenuItem[] = [
     ...(props.blank != null ? [{ value: '', label: props.blank }] : []),
     ...(props.options as any[]).map((o) => (typeof o === 'string' ? { value: o, label: o } : { value: o.value as string, label: o.label as string })),
@@ -117,7 +117,7 @@ export function Select<T extends string>(props: { value: T; options: readonly T[
   };
   return (
     <>
-      <button type="button" ref={btn} class={cx('sel', open && 'open', props.value === '' && 'ph')} aria-haspopup="listbox" aria-expanded={open}
+      <button type="button" ref={btn} class={cx('sel', props.compact && 'compact', open && 'open', props.value === '' && 'ph')} aria-haspopup="listbox" aria-expanded={open}
         onClick={() => (open ? setOpen(false) : show())} onKeyDown={onKeyDown} onBlur={() => setOpen(false)}>
         <span class="sel-label">{idx >= 0 ? items[idx].label : props.value}</span>
       </button>
@@ -158,7 +158,7 @@ export function Rating(props: { value: number | null; onChange?: (v: number | nu
 }
 
 const STATUS_CLS: Record<string, string> = {
-  'Prospect': 'grey', 'Outreach sent': 'blue', 'Scheduling': 'amber', 'Spoke': 'green', 'Thanked': 'teal',
+  'Prospect': 'grey', 'Outreach sent': 'blue', 'Scheduling': 'amber', 'Scheduled': 'green', 'Action required': 'red', 'Spoke': 'green', 'Thanked': 'teal',
   'Keep warm': 'violet', 'No response': 'red', 'Dormant': 'grey',
   'Not Started': 'grey', 'Researching': 'sky', 'Outreach Sent': 'blue', 'Call Scheduled': 'amber', 'Contacted': 'green',
   'Applied': 'violet', 'Interview': 'indigo', 'Offer': 'gold', 'Declined': 'red', 'Not Pursuing': 'slate',

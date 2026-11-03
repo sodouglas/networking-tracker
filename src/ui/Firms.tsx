@@ -69,8 +69,8 @@ export function FirmsList({ data }: { data: Data }) {
                 <td class="strong">{f.name}{f.kind === 'company' && <span class="tag sm">company</span>}{f.review && <span class="flag" title={f.review}>review</span>}
                   {f.tiers.length > 0 && <div class="small muted">{f.tiers.join(' · ')}</div>}</td>
                 <td>{f.market}</td>
-                <td><Pill s={f.status} small /></td>
-                <td><Rating value={f.interest} /></td>
+                <td onClick={(e) => e.stopPropagation()}><Select compact value={f.status} options={FIRM_STATUSES} onChange={(status) => actions.saveFirm({ ...f, status })} /></td>
+                <td onClick={(e) => e.stopPropagation()}><Rating value={f.interest} onChange={(interest) => actions.saveFirm({ ...f, interest })} title="Click to set interest" /></td>
                 <td class="num">{s.peopleCount}</td>
                 <td class={cx('num', s.spokeCount === 0 && 'muted')}>{s.spokeCount}</td>
                 <td>{s.avgImpression ? s.avgImpression.toFixed(1) : <span class="muted">—</span>}</td>

@@ -37,7 +37,10 @@ export function derivedStatus(list: Interaction[], noReplyDays: number): PersonS
 
 export function effectiveStatus(data: Data, p: Person): PersonStatus {
   if (p.statusManual) return p.status;
-  return derivedStatus(interactionsFor(data, p.id), data.settings.noReplyDays);
+  const s = derivedStatus(interactionsFor(data, p.id), data.settings.noReplyDays);
+  // a date has been set (booked and not yet logged) → Scheduled
+  if (data.meetings.some((m) => m.personId === p.id && m.date >= today())) return 'Scheduled';
+  return s;
 }
 
 const firmStatusRank = (s: string) => FIRM_STATUSES.indexOf(s as any);

@@ -7,7 +7,7 @@ export const FIRM_STATUSES = [
 export type FirmStatus = (typeof FIRM_STATUSES)[number];
 
 export const PERSON_STATUSES = [
-  'Prospect', 'Outreach sent', 'Scheduling', 'Spoke', 'Thanked', 'Keep warm', 'No response', 'Dormant',
+  'Prospect', 'Outreach sent', 'Scheduling', 'Scheduled', 'Action required', 'Spoke', 'Thanked', 'Keep warm', 'No response', 'Dormant',
 ] as const;
 export type PersonStatus = (typeof PERSON_STATUSES)[number];
 
