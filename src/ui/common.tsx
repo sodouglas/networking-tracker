@@ -22,13 +22,16 @@ export function Modal(props: { title: string; onClose?: () => void; children: Co
   );
 }
 
-export function Field(props: { label: string; children: ComponentChildren; hint?: string; span?: 1 | 2 }) {
+/** `group` = the field holds several buttons (tag chips, rating dots). A <label> would pass any click on it
+ *  to the first button, so these render a plain <div> instead. */
+export function Field(props: { label: string; children: ComponentChildren; hint?: string; span?: 1 | 2; group?: boolean }) {
+  const Tag = props.group ? 'div' : 'label';
   return (
-    <label class={cx('field', props.span === 2 && 'span2')}>
+    <Tag class={cx('field', props.span === 2 && 'span2')}>
       <span class="lbl">{props.label}</span>
       {props.children}
       {props.hint && <span class="hint">{props.hint}</span>}
-    </label>
+    </Tag>
   );
 }
 
@@ -72,20 +75,48 @@ export const Pill = ({ s, small }: { s: PersonStatus | string; small?: boolean }
 
 export function TagInput(props: { value: string[]; onChange: (v: string[]) => void; suggestions?: string[]; placeholder?: string }) {
   const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Removed tags, newest last, so ⌘Z / Ctrl+Z can put them back where they were.
+  const removed = useRef<{ tag: string; index: number }[]>([]);
+  const latest = useRef(props.value); latest.current = props.value;
+  const onChange = useRef(props.onChange); onChange.current = props.onChange;
   const add = (t: string) => {
     const v = t.trim();
     if (v && !props.value.includes(v)) props.onChange([...props.value, v]);
     setDraft('');
   };
+  const remove = (tag: string) => {
+    const index = props.value.indexOf(tag);
+    if (index < 0) return;
+    removed.current.push({ tag, index });
+    props.onChange(props.value.filter((x) => x !== tag));
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z' || !removed.current.length) return;
+      // Leave the browser's own undo alone while typing in some other box, or in this one with text in it.
+      const a = document.activeElement as HTMLElement | null;
+      const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable);
+      if (typing && !(a === inputRef.current && !inputRef.current!.value)) return;
+      e.preventDefault();
+      const { tag, index } = removed.current.pop()!;
+      const cur = latest.current;
+      if (cur.includes(tag)) return;
+      const next = [...cur]; next.splice(Math.min(index, next.length), 0, tag);
+      onChange.current(next);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const listId = useMemo(() => 'tags-' + Math.random().toString(36).slice(2), []);
   return (
-    <div class="tags-input">
-      {props.value.map((t) => <span class="tag">{t}<button type="button" onClick={() => props.onChange(props.value.filter((x) => x !== t))} aria-label={`Remove ${t}`}>×</button></span>)}
-      <input list={listId} value={draft} placeholder={props.value.length ? '' : props.placeholder ?? 'Add…'}
+    <div class="tags-input" onClick={(e) => { if (e.target === e.currentTarget) inputRef.current?.focus(); }}>
+      {props.value.map((t) => <span class="tag">{t}<button type="button" onClick={() => remove(t)} aria-label={`Remove ${t}`} title="Remove (⌘Z to undo)">×</button></span>)}
+      <input ref={inputRef} list={listId} value={draft} placeholder={props.value.length ? '' : props.placeholder ?? 'Add…'}
         onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(draft); }
-          if (e.key === 'Backspace' && !draft && props.value.length) props.onChange(props.value.slice(0, -1));
+          if (e.key === 'Backspace' && !draft && props.value.length) remove(props.value[props.value.length - 1]);
         }}
         onBlur={() => draft && add(draft)} />
       <datalist id={listId}>{(props.suggestions ?? []).filter((s) => !props.value.includes(s)).map((s) => <option value={s} />)}</datalist>

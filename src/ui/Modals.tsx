@@ -81,7 +81,7 @@ function QuickLog({ data, personId, interactionId }: { data: Data; personId?: st
         <Field label="Date"><input type="date" value={i.date} max="2100-01-01" onInput={(e) => up({ date: (e.target as HTMLInputElement).value })} /></Field>
         <Field label="Summary" span={2}><Text value={i.summary} onInput={(summary) => up({ summary })} placeholder={isConv ? '20-min Zoom about M&A group' : 'Asked for info interview'} /></Field>
         {(isConv || i.takeaways) && <Field label="Key takeaways" span={2} hint="One per line. These feed follow-up drafts and the firm page."><Area value={i.takeaways} onInput={(takeaways) => up({ takeaways })} rows={4} /></Field>}
-        {(isConv || i.impression != null) && <Field label="Impression" hint="How warm / useful was it?"><Rating value={i.impression} onChange={(impression) => up({ impression })} /></Field>}
+        {(isConv || i.impression != null) && <Field label="Impression" group hint="How warm / useful was it?"><Rating value={i.impression} onChange={(impression) => up({ impression })} /></Field>}
         {!existing && <>
           <Field label="Add a task (optional)" span={2}>
             <div class="row-gap">

@@ -114,14 +114,14 @@ export function FirmDetail({ data, id }: { data: Data; id: string }) {
           <h3>Details</h3>
           <div class="form">
             <Field label="Name" span={2}><Text value={f.name} onInput={(v) => upd({ name: v })} /></Field>
-            <Field label="Other names" span={2} hint="Short names and spellings, so imports and search match."><TagInput value={f.aliases} onChange={(aliases) => upd({ aliases })} /></Field>
+            <Field label="Other names" span={2} group hint="Short names and spellings, so imports and search match."><TagInput value={f.aliases} onChange={(aliases) => upd({ aliases })} /></Field>
             <Field label="Status"><Select value={f.status} options={FIRM_STATUSES} onChange={(status) => upd({ status })} /></Field>
-            <Field label="Interest"><Rating value={f.interest} onChange={(interest) => upd({ interest })} /></Field>
+            <Field label="Interest" group><Rating value={f.interest} onChange={(interest) => upd({ interest })} /></Field>
             <Field label="Market"><Select value={f.market} options={MARKETS} onChange={(market) => upd({ market })} blank="—" /></Field>
             <Field label="Type"><Select value={f.kind} options={[{ value: 'firm', label: 'Law firm' }, { value: 'company', label: 'Company / in-house' }]} onChange={(kind) => upd({ kind })} /></Field>
             <Field label="Offices"><Text value={f.offices} onInput={(v) => upd({ offices: v })} /></Field>
             <Field label="Size"><Text value={f.size} onInput={(v) => upd({ size: v })} placeholder="e.g. 600+ in NYC" /></Field>
-            <Field label="Tier tags" span={2}><TagInput value={f.tiers} onChange={(tiers) => upd({ tiers })} suggestions={TIER_SUGGESTIONS} /></Field>
+            <Field label="Tier tags" span={2} group><TagInput value={f.tiers} onChange={(tiers) => upd({ tiers })} suggestions={TIER_SUGGESTIONS} /></Field>
             <Field label="Practice areas of interest" span={2}><Text value={f.practiceAreas} onInput={(v) => upd({ practiceAreas: v })} /></Field>
             <Field label="How I found them" span={2}><Text value={f.howFound} onInput={(v) => upd({ howFound: v })} /></Field>
             <Field label="Culture notes / impressions" span={2}><Area value={f.notes} onInput={(v) => upd({ notes: v })} rows={5} /></Field>
