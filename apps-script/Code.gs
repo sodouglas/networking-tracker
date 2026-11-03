@@ -112,8 +112,10 @@ function mirrorSheet(tables) {
 
 /**
  * Create a notes Google Doc for one conversation in the shared folder's Notes/ subfolder.
- * spec = { title, blocks: [{ type: 'h1'|'h2'|'h3'|'p'|'bullet', text }] }, built by the app.
- * Needs the Docs scope (documents) in appsscript.json.
+ * spec = { title, blocks: [{ type: 'h1'|'h2'|'h3'|'p'|'bullet', text, date? }] }, built by the app.
+ * A block's optional date (YYYY-MM-DD) is added at the end of its text as a date chip (Docs advanced service),
+ * or as plain text if that service isn't enabled.
+ * Needs the Docs scope (documents) and the Docs advanced service in appsscript.json.
  */
 function createNotesDoc(spec) {
   guard_();
@@ -129,8 +131,25 @@ function createNotesDoc(spec) {
   const first = body.getChild(0); // the empty paragraph every new doc starts with
   if (body.getNumChildren() > 1 && first.getType() === DocumentApp.ElementType.PARAGRAPH && first.asParagraph().getText() === '') body.removeChild(first);
   doc.saveAndClose();
+  const dated = spec.blocks.slice(0, 400).filter(function (b) { return b.date && /^\d{4}-\d{2}-\d{2}$/.test(b.date); })[0];
+  if (dated) dateChip_(doc.getId(), String(dated.text || '').slice(0, 2000), dated.date, spec.blocks.indexOf(dated));
   DriveApp.getFileById(doc.getId()).moveTo(notesFolder_());
   return { url: doc.getUrl(), id: doc.getId() };
+}
+
+/** Put a date chip at the end of the first paragraph (the heading), which starts at index 1. */
+function dateChip_(id, text, date, blockIndex) {
+  try {
+    if (blockIndex !== 0) throw new Error('chip only supported on the first block');
+    Docs.Documents.batchUpdate({ requests: [{ insertDate: {
+      location: { index: 1 + text.length },
+      dateElementProperties: { timestamp: date + 'T12:00:00Z', timeZoneId: 'UTC', dateFormat: 'DATE_FORMAT_MONTH_DAY_ABBREVIATED', timeFormat: 'TIME_FORMAT_DISABLED' },
+    } }] }, id);
+  } catch (e) {
+    const p = DocumentApp.openById(id).getBody().getChild(0).asParagraph();
+    p.appendText(Utilities.formatDate(new Date(date + 'T12:00:00Z'), 'UTC', 'MMM d'));
+    DocumentApp.openById(id).saveAndClose();
+  }
 }
 
 function notesFolder_() {

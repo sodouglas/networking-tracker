@@ -4,7 +4,7 @@ import { fmtDate } from './util';
 import { interactionsFor, taskActive } from './logic';
 
 /** What the server turns into a Google Doc. Kept dumb on purpose: all the content decisions live here. */
-export interface NotesSpec { title: string; blocks: { type: 'h1' | 'h2' | 'h3' | 'p' | 'bullet'; text: string }[] }
+export interface NotesSpec { title: string; blocks: { type: 'h1' | 'h2' | 'h3' | 'p' | 'bullet'; text: string; date?: string }[] }
 
 export const isUrl = (s?: string) => !!s && /^https?:\/\//i.test(s.trim());
 
@@ -15,11 +15,11 @@ export function notesDocSpec(d: Data, o: { personId: string; date: string; type:
   const f = d.firms.find((x) => x.id === p.firmId);
   const kind = INTERACTION_TYPES[o.type];
   const b: NotesSpec['blocks'] = [];
-  const add = (type: NotesSpec['blocks'][number]['type'], text = '') => b.push({ type, text });
+  const add = (type: NotesSpec['blocks'][number]['type'], text = '', date?: string) => b.push(date ? { type, text, date } : { type, text });
 
   const who = [p.title || p.role, f?.name].filter(Boolean).join(', ');
-  add('h1', `${kind} with ${p.name}`);
-  add('p', [fmtDate(o.date), o.where].filter(Boolean).join(' · '));
+  add('h1', `${kind} with ${p.name} | `, o.date); // the date is added as a date chip after the text
+  if (o.where) add('p', o.where);
 
   add('h2', 'Attendees');
   add('bullet', who ? `${p.name} (${who}${p.gradYear ? `, class of ${p.gradYear}` : ''})` : p.name);

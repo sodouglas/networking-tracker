@@ -5,8 +5,8 @@ const crypto = require('crypto');
 const assert = require('assert');
 const src = fs.readFileSync(__dirname + '/Code.gs', 'utf8');
 
-function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetchCode = 200 } = {}) {
-  let lastHeaders = null; const logs = []; const moved = []; const doc = { kids: [], title: '', saved: false };
+function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetchCode = 200, noDocs = false } = {}) {
+  let lastHeaders = null; const logs = []; const moved = []; const doc = { kids: [], title: '', saved: false, chips: [] };
   const props = { FOLDER_ID: 'F1', ALLOWED_EMAILS: 'friend@gmail.com, owner@gmail.com', GITHUB_REPO: 'me/repo' };
   const cache = {};
   let fetches = 0;
@@ -46,15 +46,18 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetch
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; } }) },
     Session: { getActiveUser: () => ({ getEmail: () => user }) },
     DriveApp: { getFolderById: (id) => { assert.equal(id, 'F1'); return root; }, getFileById: (id) => ({ moveTo: (f) => { moved.push({ id, f }); if (id !== 'DOC1') files['Networking Tracker (read-only)'] = 'sheet'; } }) },
+    ...(noDocs ? {} : { Docs: { Documents: { batchUpdate: (req, id) => { doc.chips.push({ req, id }); } } } }),
     DocumentApp: {
       ParagraphHeading: { HEADING1: 'H1', HEADING2: 'H2', HEADING3: 'H3', NORMAL: 'NORMAL' }, GlyphType: { BULLET: 'BULLET' }, ElementType: { PARAGRAPH: 'PARAGRAPH', LIST_ITEM: 'LIST_ITEM' },
+      openById: () => ({ getBody: () => doc.body, saveAndClose: () => {} }),
       create: (title) => { doc.title = title; doc.kids = [{ kind: 'PARAGRAPH', text: '' }]; const k = doc.kids;
         const body = {
           appendParagraph: (t) => { const x = { kind: 'PARAGRAPH', text: t, heading: 'NORMAL' }; k.push(x); return { setHeading: (h) => { x.heading = h; } }; },
           appendListItem: (t) => { const x = { kind: 'LIST_ITEM', text: t }; k.push(x); return { setGlyphType: () => {} }; },
-          getChild: (i) => ({ _k: k[i], getType: () => k[i].kind, asParagraph: () => ({ getText: () => k[i].text }) }),
+          getChild: (i) => ({ _k: k[i], getType: () => k[i].kind, asParagraph: () => ({ getText: () => k[i].text, appendText: (x) => { k[i].text += x; } }) }),
           getNumChildren: () => k.length, removeChild: (c) => { k.splice(k.indexOf(c._k), 1); },
         };
+        doc.body = body;
         return { getBody: () => body, saveAndClose: () => { doc.saved = true; }, getId: () => 'DOC1', getUrl: () => 'https://docs.google.com/document/d/DOC1/edit' }; },
     },
     SpreadsheetApp: { create: () => { ssCreated++; sheets.Sheet1 = mkSheet('Sheet1'); return ss; }, openById: () => ss, ProtectionType: { SHEET: 'SHEET' } },
@@ -62,7 +65,7 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetch
     Utilities: {
       DigestAlgorithm: { MD5: 'md5' }, Charset: { UTF_8: 'utf8' },
       computeDigest: (alg, t) => [...crypto.createHash('md5').update(t, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
-      formatDate: () => '2026-11-03',
+      formatDate: (d, tz, f) => (f === 'MMM d' ? 'Nov 4' : '2026-11-03'),
     },
     CacheService: { getScriptCache: () => ({ get: (k) => cache[k] ?? null, put: (k, v, ttl) => { cache[k] = v; cache['ttl:' + k] = ttl; }, remove: (k) => { delete cache[k]; } }) },
     console: { log: (m) => logs.push(m), warn: (m) => logs.push(m) },
@@ -156,14 +159,21 @@ console.log('mirror ok');
 
 // notes doc: built from the app's spec, lands in Notes/, only for allowed users
 e = env();
-const spec = { title: '2026-11-03 · Phone call · Kerry', blocks: [
-  { type: 'h1', text: 'Phone call with Kerry' }, { type: 'p', text: 'Associate · Sidley' }, { type: 'h2', text: 'Notes' }, { type: 'p', text: '' }, { type: 'bullet', text: 'Q one' }] };
+const spec = { title: 'Phone call with Kerry – 2026-11-04 – Notes', blocks: [
+  { type: 'h1', text: 'Phone call with Kerry | ', date: '2026-11-04' }, { type: 'p', text: 'Associate · Sidley' }, { type: 'h2', text: 'Notes' }, { type: 'p', text: '' }, { type: 'bullet', text: 'Q one' }] };
 const made = e.sb.createNotesDoc(spec);
 assert.equal(made.url, 'https://docs.google.com/document/d/DOC1/edit');
 assert.equal(e.doc.title, spec.title);
-assert.deepEqual(e.doc.kids.map((k) => [k.kind, k.text, k.heading]), [['PARAGRAPH', 'Phone call with Kerry', 'H1'], ['PARAGRAPH', 'Associate · Sidley', 'NORMAL'], ['PARAGRAPH', 'Notes', 'H2'], ['PARAGRAPH', '', 'NORMAL'], ['LIST_ITEM', 'Q one', undefined]], 'blank first paragraph removed, headings applied');
+assert.deepEqual(e.doc.kids.map((k) => [k.kind, k.text, k.heading]), [['PARAGRAPH', 'Phone call with Kerry | ', 'H1'], ['PARAGRAPH', 'Associate · Sidley', 'NORMAL'], ['PARAGRAPH', 'Notes', 'H2'], ['PARAGRAPH', '', 'NORMAL'], ['LIST_ITEM', 'Q one', undefined]], 'blank first paragraph removed, headings applied');
+const chip = e.doc.chips[0].req.requests[0].insertDate;
+assert.equal(chip.location.index, 1 + 'Phone call with Kerry | '.length);
+assert.equal(chip.dateElementProperties.timestamp, '2026-11-04T12:00:00Z');
+assert.equal(chip.dateElementProperties.dateFormat, 'DATE_FORMAT_MONTH_DAY_ABBREVIATED');
 assert(e.doc.saved && e.moved.length === 1 && e.moved[0].id === 'DOC1' && e.subfolders.Notes, 'moved into Notes/');
 e.sb.createNotesDoc(spec);
+e = env({ noDocs: true }); e.sb.createNotesDoc(spec); // Docs service not enabled: plain-text date instead
+assert.equal(e.doc.kids[0].text, 'Phone call with Kerry | Nov 4', 'fallback date as text');
+e = env(); e.sb.createNotesDoc(spec);
 assert.equal(Object.keys(e.subfolders).filter((k) => k === 'Notes').length, 1, 'Notes folder reused');
 assert.throws(() => e.sb.createNotesDoc({}), /Bad notes spec/);
 e = env({ user: 'stranger@gmail.com' });
