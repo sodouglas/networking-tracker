@@ -31,6 +31,6 @@ export const meetingStart = (m: Meeting) => compact(m.date, m.time);
 export const meetingEnd = endOf;
 
 export function gcalUrl(d: Data, m: Meeting) {
-  const q = new URLSearchParams({ action: 'TEMPLATE', text: meetingTitle(d, m), dates: `${meetingStart(m)}/${meetingEnd(m)}`, details: m.notes, location: m.where });
+  const q = new URLSearchParams({ action: 'TEMPLATE', text: meetingTitle(d, m), dates: `${meetingStart(m)}/${meetingEnd(m)}`, details: [m.notes, m.notesUrl && `Notes: ${m.notesUrl}`].filter(Boolean).join('\n'), location: m.where });
   return 'https://calendar.google.com/calendar/render?' + q.toString();
 }

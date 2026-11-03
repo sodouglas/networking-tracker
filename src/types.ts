@@ -84,6 +84,7 @@ export interface Interaction {
   takeaways: string;
   impression: number | null;
   link?: string;            // e.g. Gmail thread
+  notesUrl?: string;        // Google Doc with the notes from this conversation
   gmailKey?: string;        // Gmail log entry this interaction came from or is linked to
   source?: 'gmail';
 }
@@ -123,6 +124,7 @@ export interface Meeting {
   type: InteractionType;
   where: string;  // Zoom link, phone number, café…
   notes: string;
+  notesUrl?: string; // Google Doc for the notes; carried onto the interaction when you log it
 }
 
 export interface Template {

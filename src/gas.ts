@@ -139,6 +139,11 @@ function scheduleMirror() {
   mirrorTimer = window.setTimeout(mirrorNow, MIRROR_DELAY_MS);
 }
 
+/** Creates a notes Google Doc in the shared folder (Notes/) and returns its link. Needs the updated Code.gs. */
+export function createNotesDoc(spec: import('./notes').NotesSpec): Promise<{ url: string; id: string }> {
+  return call('createNotesDoc', spec);
+}
+
 export async function mirrorNow() {
   try {
     const url = await call<string>('mirrorSheet', sheetTables(getState().data));

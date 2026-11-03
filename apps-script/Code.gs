@@ -17,6 +17,7 @@ const DATA_FILE = 'tracker.json';
 const GMAIL_LOG = 'gmail-log.json';
 const SHEET_NAME = 'Networking Tracker (read-only)';
 const BACKUP_DIR = 'backups';
+const NOTES_DIR = 'Notes';
 const KEEP_DAILY_BACKUPS = 30;
 
 // ---------- web app ----------
@@ -107,6 +108,35 @@ function mirrorSheet(tables) {
   const about = ss.getSheetByName('Summary');
   if (about) about.getRange('D1').setValue('Last synced: ' + new Date().toLocaleString());
   return ss.getUrl();
+}
+
+/**
+ * Create a notes Google Doc for one conversation in the shared folder's Notes/ subfolder.
+ * spec = { title, blocks: [{ type: 'h1'|'h2'|'h3'|'p'|'bullet', text }] }, built by the app.
+ * Needs the Docs scope (documents) in appsscript.json.
+ */
+function createNotesDoc(spec) {
+  guard_();
+  if (!spec || !Array.isArray(spec.blocks)) throw new Error('Bad notes spec');
+  const doc = DocumentApp.create(String(spec.title || 'Notes').slice(0, 200));
+  const body = doc.getBody();
+  const H = { h1: DocumentApp.ParagraphHeading.HEADING1, h2: DocumentApp.ParagraphHeading.HEADING2, h3: DocumentApp.ParagraphHeading.HEADING3 };
+  spec.blocks.slice(0, 400).forEach(function (b) {
+    const text = String(b.text || '').slice(0, 2000);
+    if (b.type === 'bullet') body.appendListItem(text).setGlyphType(DocumentApp.GlyphType.BULLET);
+    else body.appendParagraph(text).setHeading(H[b.type] || DocumentApp.ParagraphHeading.NORMAL);
+  });
+  const first = body.getChild(0); // the empty paragraph every new doc starts with
+  if (body.getNumChildren() > 1 && first.getType() === DocumentApp.ElementType.PARAGRAPH && first.asParagraph().getText() === '') body.removeChild(first);
+  doc.saveAndClose();
+  DriveApp.getFileById(doc.getId()).moveTo(notesFolder_());
+  return { url: doc.getUrl(), id: doc.getId() };
+}
+
+function notesFolder_() {
+  const root = folder_();
+  const it = root.getFoldersByName(NOTES_DIR);
+  return it.hasNext() ? it.next() : root.createFolder(NOTES_DIR);
 }
 
 // ---------- helpers ----------

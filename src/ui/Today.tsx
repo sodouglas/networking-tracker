@@ -6,6 +6,7 @@ import { addDays, fmtDate, relDays, today, cx } from '../util';
 import { go, openModal } from './nav';
 import { Empty, Pill } from './common';
 import { byWhen, timeLabel } from '../meetings';
+import { isUrl } from '../notes';
 import { INTERACTION_TYPES } from '../types';
 
 export function Today({ data }: { data: Data }) {
@@ -99,6 +100,7 @@ export function Today({ data }: { data: Data }) {
                     <a href={`#/people/${p.id}`} class="strong">{p.name}</a> <span class="muted">· {INTERACTION_TYPES[m.type]}{m.where ? ` · ${m.where.replace(/^https?:\/\//, '').slice(0, 30)}` : ''}</span>
                     <div class="small muted">{relDays(m.date)}{m.time ? ` · ${timeLabel(m.time)}` : ''}{past ? ' · happened? log it' : ''}</div>
                   </div>
+                  {isUrl(m.notesUrl) && <a class="small" href={m.notesUrl} target="_blank" rel="noreferrer">Notes ↗</a>}
                   <button class={cx('btn sm', !past && 'ghost')} onClick={() => openModal({ kind: 'log', meetingId: m.id })}>{past ? 'Log it' : 'Log'}</button>
                   <button class="btn sm ghost" onClick={() => openModal({ kind: 'meeting', meetingId: m.id })}>Edit</button>
                 </div>

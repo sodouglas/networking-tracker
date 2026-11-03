@@ -31,7 +31,7 @@ function tables(d: Data) {
       const p = d.people.find((x) => x.id === i.personId);
       return {
         Date: i.date, Person: p?.name ?? '', Firm: firmName(d, p?.firmId), Type: INTERACTION_TYPES[i.type],
-        Summary: i.summary, Takeaways: i.takeaways, Impression: i.impression ?? '', Link: i.link ?? '',
+        Summary: i.summary, Takeaways: i.takeaways, Impression: i.impression ?? '', Link: i.link ?? '', 'Notes doc': i.notesUrl ?? '',
       };
     }),
     Tasks: d.tasks.map((t) => ({
@@ -42,7 +42,7 @@ function tables(d: Data) {
     })),
     Meetings: [...d.meetings].sort(byWhen).map((m) => ({
       Date: m.date, Time: m.time, Person: person(m.personId), Firm: firmName(d, d.people.find((p) => p.id === m.personId)?.firmId),
-      Type: INTERACTION_TYPES[m.type], Where: m.where, Notes: m.notes,
+      Type: INTERACTION_TYPES[m.type], Where: m.where, Notes: m.notes, 'Notes doc': m.notesUrl ?? '',
     })),
     Deadlines: [...d.deadlines].sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({
       Date: x.date, Time: x.time ?? '', Name: x.name, Program: x.program, Firm: firmName(d, x.firmId),
@@ -122,7 +122,8 @@ export function exportIcs(d: Data) {
     else lines.push(`DTSTART;VALUE=DATE:${icsDate(m.date)}`, `DTEND;VALUE=DATE:${icsDate(addDays(m.date, 1))}`);
     lines.push(fold(`SUMMARY:${icsEsc(meetingTitle(d, m))}`));
     if (m.where) lines.push(fold(`LOCATION:${icsEsc(m.where)}`));
-    if (m.notes) lines.push(fold(`DESCRIPTION:${icsEsc(m.notes)}`));
+    const desc = [m.notes, m.notesUrl && `Notes: ${m.notesUrl}`].filter(Boolean).join('\n');
+    if (desc) lines.push(fold(`DESCRIPTION:${icsEsc(desc)}`));
     lines.push('END:VEVENT');
     ev.push(lines.join('\r\n'));
   }

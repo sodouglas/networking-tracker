@@ -6,7 +6,7 @@ const assert = require('assert');
 const src = fs.readFileSync(__dirname + '/Code.gs', 'utf8');
 
 function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetchCode = 200 } = {}) {
-  let lastHeaders = null; const logs = [];
+  let lastHeaders = null; const logs = []; const moved = []; const doc = { kids: [], title: '', saved: false };
   const props = { FOLDER_ID: 'F1', ALLOWED_EMAILS: 'friend@gmail.com, owner@gmail.com', GITHUB_REPO: 'me/repo' };
   const cache = {};
   let fetches = 0;
@@ -45,7 +45,18 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetch
   const sb = {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; } }) },
     Session: { getActiveUser: () => ({ getEmail: () => user }) },
-    DriveApp: { getFolderById: (id) => { assert.equal(id, 'F1'); return root; }, getFileById: () => ({ moveTo: () => { files[ 'Networking Tracker (read-only)'] = 'sheet'; } }) },
+    DriveApp: { getFolderById: (id) => { assert.equal(id, 'F1'); return root; }, getFileById: (id) => ({ moveTo: (f) => { moved.push({ id, f }); if (id !== 'DOC1') files['Networking Tracker (read-only)'] = 'sheet'; } }) },
+    DocumentApp: {
+      ParagraphHeading: { HEADING1: 'H1', HEADING2: 'H2', HEADING3: 'H3', NORMAL: 'NORMAL' }, GlyphType: { BULLET: 'BULLET' }, ElementType: { PARAGRAPH: 'PARAGRAPH', LIST_ITEM: 'LIST_ITEM' },
+      create: (title) => { doc.title = title; doc.kids = [{ kind: 'PARAGRAPH', text: '' }]; const k = doc.kids;
+        const body = {
+          appendParagraph: (t) => { const x = { kind: 'PARAGRAPH', text: t, heading: 'NORMAL' }; k.push(x); return { setHeading: (h) => { x.heading = h; } }; },
+          appendListItem: (t) => { const x = { kind: 'LIST_ITEM', text: t }; k.push(x); return { setGlyphType: () => {} }; },
+          getChild: (i) => ({ _k: k[i], getType: () => k[i].kind, asParagraph: () => ({ getText: () => k[i].text }) }),
+          getNumChildren: () => k.length, removeChild: (c) => { k.splice(k.indexOf(c._k), 1); },
+        };
+        return { getBody: () => body, saveAndClose: () => { doc.saved = true; }, getId: () => 'DOC1', getUrl: () => 'https://docs.google.com/document/d/DOC1/edit' }; },
+    },
     SpreadsheetApp: { create: () => { ssCreated++; sheets.Sheet1 = mkSheet('Sheet1'); return ss; }, openById: () => ss, ProtectionType: { SHEET: 'SHEET' } },
     LockService: { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
     Utilities: {
@@ -63,7 +74,7 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetch
   };
   vm.createContext(sb);
   vm.runInContext(src, sb);
-  return { sb, files, subfolders, sheets, props, cache, logs, get headers() { return lastHeaders; }, get fetches() { return fetches; }, get ssCreated() { return ssCreated; } };
+  return { sb, files, subfolders, sheets, props, cache, logs, moved, doc, get headers() { return lastHeaders; }, get fetches() { return fetches; }, get ssCreated() { return ssCreated; } };
 }
 const md5 = (t) => crypto.createHash('md5').update(t, 'utf8').digest('hex');
 const doc = (n) => JSON.stringify({ people: Array(n).fill({}), firms: [] });
@@ -142,3 +153,19 @@ assert.equal(e.ssCreated, 1, 'reuses sheet');
 assert.equal(e.sheets.People.protections, 1, 'protection added once');
 assert.deepEqual(e.sheets.People.values, [['Name'], ['Cy']]);
 console.log('mirror ok');
+
+// notes doc: built from the app's spec, lands in Notes/, only for allowed users
+e = env();
+const spec = { title: '2026-11-03 · Phone call · Kerry', blocks: [
+  { type: 'h1', text: 'Phone call with Kerry' }, { type: 'p', text: 'Associate · Sidley' }, { type: 'h2', text: 'Notes' }, { type: 'p', text: '' }, { type: 'bullet', text: 'Q one' }] };
+const made = e.sb.createNotesDoc(spec);
+assert.equal(made.url, 'https://docs.google.com/document/d/DOC1/edit');
+assert.equal(e.doc.title, spec.title);
+assert.deepEqual(e.doc.kids.map((k) => [k.kind, k.text, k.heading]), [['PARAGRAPH', 'Phone call with Kerry', 'H1'], ['PARAGRAPH', 'Associate · Sidley', 'NORMAL'], ['PARAGRAPH', 'Notes', 'H2'], ['PARAGRAPH', '', 'NORMAL'], ['LIST_ITEM', 'Q one', undefined]], 'blank first paragraph removed, headings applied');
+assert(e.doc.saved && e.moved.length === 1 && e.moved[0].id === 'DOC1' && e.subfolders.Notes, 'moved into Notes/');
+e.sb.createNotesDoc(spec);
+assert.equal(Object.keys(e.subfolders).filter((k) => k === 'Notes').length, 1, 'Notes folder reused');
+assert.throws(() => e.sb.createNotesDoc({}), /Bad notes spec/);
+e = env({ user: 'stranger@gmail.com' });
+assert.throws(() => e.sb.createNotesDoc(spec), /Not allowed/);
+console.log('notes doc ok');

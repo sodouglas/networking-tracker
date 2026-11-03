@@ -225,7 +225,7 @@ ul.tight { margin: 4px 0; padding-left: 16px; } ul.tight li { margin: 2px 0; }
 .ev.meeting { background: #dbeaf6; color: #1d4f7a; font-weight: 550; }
 button.ev { border: 0; width: 100%; text-align: left; font: inherit; font-size: 11px; cursor: pointer; }
 .day { position: relative; }
-.day-add { position: absolute; top: 2px; right: 3px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 3px; opacity: 0; border-radius: 3px; }
+.day-add { position: absolute; top: 2px; right: 3px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 11px; line-height: 1.4; padding: 0 5px; white-space: nowrap; opacity: 0; border-radius: 3px; }
 .day:hover .day-add, .day-add:focus-visible { opacity: 1; } .day-add:hover { color: var(--accent); background: var(--accent-2); }
 .ev.deadline { background: #f8e6e4; } .ev.task { background: #eee8f6; }
 .ev.follow { background: #fbf0dc; } .ev.past { background: var(--line-2); color: var(--ink-2); }

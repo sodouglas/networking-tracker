@@ -7,6 +7,7 @@ import { fmtDate, norm, relDays, cx, today } from '../util';
 import { byWhen, timeLabel } from '../meetings';
 import { exportVcf } from '../io';
 import { emailOf } from '../compose';
+import { isUrl } from '../notes';
 import { go, hashQuery, openModal } from './nav';
 import { Area, Combo, Empty, Field, Pill, Rating, Select, TagInput, Text, allTags, firmItems, dupPeople } from './common';
 import { TaskRow } from './Today';
@@ -161,6 +162,7 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
               {booked.map((m) => (
                 <div class="row">
                   <div class="grow"><span class="strong">{fmtDate(m.date)}</span>{m.time && <span class="muted"> · {timeLabel(m.time)}</span>} <span class="muted">· {INTERACTION_TYPES[m.type]}{m.where ? ` · ${m.where.slice(0, 40)}` : ''}</span></div>
+                  {isUrl(m.notesUrl) && <a class="small" href={m.notesUrl} target="_blank" rel="noreferrer">Notes ↗</a>}
                   <button class={cx('btn sm', m.date >= today() && 'ghost')} onClick={() => openModal({ kind: 'log', meetingId: m.id })}>Log it</button>
                   <button class="btn sm ghost" onClick={() => openModal({ kind: 'meeting', meetingId: m.id })}>Edit</button>
                 </div>
@@ -182,6 +184,7 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
                     <span class="strong">{INTERACTION_TYPES[i.type]}</span>
                     <span class="muted small">{fmtDate(i.date)} · {relDays(i.date)}</span>
                     {i.impression != null && <Rating value={i.impression} title="Impression" />}
+                    {isUrl(i.notesUrl) && <a class="small" href={i.notesUrl} target="_blank" rel="noreferrer">Notes ↗</a>}
                     {i.link && <a class="small" href={i.link} target="_blank" rel="noreferrer">Open in Gmail ↗</a>}
                     {i.source === 'gmail' && <span class="tag sm" title="Added automatically from Gmail">Gmail</span>}
                     <button class="btn xs ghost right" onClick={() => openModal({ kind: 'log', personId: p.id, interactionId: i.id })}>Edit</button>

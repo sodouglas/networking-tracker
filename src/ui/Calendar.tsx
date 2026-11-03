@@ -66,7 +66,7 @@ export function Calendar({ data }: { data: Data }) {
             return (
               <div class={cx('day', d.getMonth() !== ym.m && 'other', iso === t && 'today')}>
                 <div class="num">{d.getDate()}</div>
-                <button class="day-add" title="Schedule a conversation this day" aria-label="Schedule a conversation this day" onClick={() => openModal({ kind: 'meeting', date: iso })}>+</button>
+                <button class="day-add" title="Schedule a conversation this day" aria-label="Schedule a conversation this day" onClick={() => openModal({ kind: 'meeting', date: iso })}>+ Schedule</button>
                 {list.slice(0, 4).map((e) => e.task
                   ? <div class={cx('ev task', e.task.done && 'done')} title={e.label}>
                       <input type="checkbox" checked={e.task.done} onChange={() => actions.toggleTask(e.task!.id)} aria-label={e.task.done ? 'Mark not done' : 'Mark done'} />

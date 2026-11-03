@@ -2,7 +2,9 @@ import { useMemo, useState } from 'preact/hooks';
 import type { Data, Interaction, InteractionType, Meeting, Task, FirmStatus } from '../types';
 import { INTERACTION_TYPES, FIRM_STATUSES, CONVERSATION_TYPES, MEETING_TYPES } from '../types';
 import { gcalUrl } from '../meetings';
-import { actions, newFirm, newPerson } from '../store';
+import { actions, getState, newFirm, newPerson } from '../store';
+import { createNotesDoc } from '../gas';
+import { isUrl, notesDocSpec, type NotesSpec } from '../notes';
 import { interactionsFor, firmStats, shortFirm, firmName, effectiveStatus, taskActive } from '../logic';
 import { emailOf, gmailUrl, renderTemplate, snippets } from '../compose';
 import { today, uid, fmtDate, similar } from '../util';
@@ -29,7 +31,7 @@ function QuickLog({ data, personId, interactionId, meetingId }: { data: Data; pe
   const existing = data.interactions.find((i) => i.id === interactionId);
   const booked = data.meetings.find((m) => m.id === meetingId); // logging a scheduled conversation that has now happened
   const [i, setI] = useState<Interaction>(existing ?? (booked
-    ? { id: uid(), personId: booked.personId, date: booked.date, type: booked.type, summary: '', takeaways: '', impression: null }
+    ? { id: uid(), personId: booked.personId, date: booked.date, type: booked.type, summary: '', takeaways: '', impression: null, notesUrl: booked.notesUrl }
     : { id: uid(), personId: personId ?? '', date: today(), type: 'email-out', summary: '', takeaways: '', impression: null }));
   const [newName, setNewName] = useState('');
   const [newFirmId, setNewFirmId] = useState<string | null>(null);
@@ -85,6 +87,8 @@ function QuickLog({ data, personId, interactionId, meetingId }: { data: Data; pe
         </>}
         <Field label="Type"><Select value={i.type} options={TYPE_OPTIONS} onChange={(type) => up({ type })} /></Field>
         <Field label="Date"><input type="date" value={i.date} max="2100-01-01" onInput={(e) => up({ date: (e.target as HTMLInputElement).value })} /></Field>
+        {(isConv || i.notesUrl) && <NotesField value={i.notesUrl ?? ''} onChange={(notesUrl) => up({ notesUrl })} disabled={!i.personId}
+          build={() => notesDocSpec(data, { personId: i.personId, date: i.date, type: i.type })} />}
         <Field label="Summary" span={2}><Text value={i.summary} onInput={(summary) => up({ summary })} placeholder={isConv ? '20-min Zoom about M&A group' : 'Asked for info interview'} /></Field>
         {(isConv || i.takeaways) && <Field label="Key takeaways" span={2} hint="One per line. These feed follow-up drafts and the firm page."><Area value={i.takeaways} onInput={(takeaways) => up({ takeaways })} rows={4} /></Field>}
         {(isConv || i.impression != null) && <Field label="Impression" group hint="How warm / useful was it?"><Rating value={i.impression} onChange={(impression) => up({ impression })} /></Field>}
@@ -320,15 +324,44 @@ function MeetingEditor({ data, meetingId, personId, date }: { data: Data; meetin
       </>}>
       <div class="form" onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); }}>
         <Field label="Person" span={2}>
-          <Combo items={personItems(data)} value={m.personId || null} onChange={(id) => up({ personId: id ?? '' })} placeholder="Type a name…" autoFocus={!personId && !existing} />
+          <Combo items={personItems(data)} value={m.personId || null} onChange={(id) => up({ personId: id ?? '' })} placeholder="Type a name…" />
         </Field>
         <Field label="Type"><Select value={m.type} options={MEETING_TYPES.map((k) => ({ value: k, label: INTERACTION_TYPES[k] }))} onChange={(type) => up({ type })} /></Field>
         <Field label="Date"><input type="date" value={m.date} max="2100-01-01" onInput={(e) => up({ date: (e.target as HTMLInputElement).value })} /></Field>
         <Field label="Time" hint="Optional. Your local time."><input type="time" value={m.time} onInput={(e) => up({ time: (e.target as HTMLInputElement).value })} /></Field>
         <Field label="Where / link" hint="Zoom link, phone number, café…"><Text value={m.where} onInput={(where) => up({ where })} placeholder="https://zoom.us/j/…" /></Field>
         <Field label="Notes" span={2}><Area value={m.notes} onInput={(notes) => up({ notes })} rows={2} /></Field>
+        <NotesField value={m.notesUrl ?? ''} onChange={(notesUrl) => up({ notesUrl })} disabled={!m.personId}
+          build={() => notesDocSpec(data, { personId: m.personId, date: m.date, type: m.type, where: m.where })} />
       </div>
     </Modal>
+  );
+}
+
+/** Link to the Google Doc holding the notes for one conversation, with a one-click "create" in the web app. */
+function NotesField({ value, onChange, build, disabled }: { value: string; onChange: (v: string) => void; build: () => NotesSpec | null; disabled?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const canCreate = getState().backend === 'gas';
+  const create = async () => {
+    const spec = build();
+    if (!spec) return;
+    setBusy(true); setErr('');
+    try { onChange((await createNotesDoc(spec)).url); }
+    catch (e: any) {
+      const msg = String(e?.message ?? e);
+      setErr(/not a function|createNotesDoc|documents/i.test(msg) ? 'The server script needs updating to create docs (Web-App-Setup → Updating). You can still paste a link.' : `Couldn’t create the doc: ${msg}`);
+    } finally { setBusy(false); }
+  };
+  return (
+    <Field label="Notes doc" span={2} group hint={canCreate ? 'One Google Doc per conversation. “Create doc” makes one with their background, your questions and blank sections.' : 'Paste the link to the Google Doc holding your notes.'}>
+      <div class="with-link">
+        <Text value={value} onInput={onChange} placeholder="https://docs.google.com/document/d/…" />
+        {isUrl(value) && <a href={value.trim()} target="_blank" rel="noreferrer">open</a>}
+        {canCreate && !value && <button type="button" class="btn sm" disabled={busy || disabled} title={disabled ? 'Pick a person first' : ''} onClick={create}>{busy ? 'Creating…' : 'Create doc'}</button>}
+      </div>
+      {err && <span class="err small">{err}</span>}
+    </Field>
   );
 }
 const openModalLog = (meetingId: string) => openModal({ kind: 'log', meetingId });
