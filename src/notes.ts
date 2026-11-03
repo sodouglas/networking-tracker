@@ -17,35 +17,25 @@ export function notesDocSpec(d: Data, o: { personId: string; date: string; type:
   const b: NotesSpec['blocks'] = [];
   const add = (type: NotesSpec['blocks'][number]['type'], text = '') => b.push({ type, text });
 
+  const who = [p.title || p.role, f?.name].filter(Boolean).join(', ');
   add('h1', `${kind} with ${p.name}`);
-  add('p', [p.title || p.role, f?.name, p.gradYear && `Class of ${p.gradYear}`, p.school].filter(Boolean).join(' · '));
   add('p', [fmtDate(o.date), o.where].filter(Boolean).join(' · '));
-  if (p.whereMet) add('p', `Met: ${p.whereMet}`);
-  if (p.pastEmployers) add('p', `Before: ${p.pastEmployers}`);
-  if (p.personal) add('p', `Remember: ${p.personal}`);
-  if (p.tags.length) add('p', `Connection: ${p.tags.join(', ')}`);
 
-  const history = interactionsFor(d, p.id).reverse().slice(0, 4);
-  if (history.length) {
-    add('h2', 'History');
-    history.forEach((i) => add('bullet', `${fmtDate(i.date)} ${INTERACTION_TYPES[i.type]}${i.summary ? ` — ${i.summary}` : ''}${i.takeaways ? ` (${i.takeaways})` : ''}`));
-  }
-  const open = d.tasks.filter((t) => t.personId === p.id && taskActive(d, t));
-  if (open.length) {
-    add('h2', 'Open items');
-    open.forEach((t) => add('bullet', `${t.direction === 'owe' ? 'I owe: ' : 'Waiting on: '}${t.text}`));
-  }
+  add('h2', 'Attendees');
+  add('bullet', who ? `${p.name} (${who}${p.gradYear ? `, class of ${p.gradYear}` : ''})` : p.name);
+
+  const bg: string[] = [];
+  if (p.whereMet) bg.push(`Met: ${p.whereMet}`);
+  if (p.pastEmployers) bg.push(`Before: ${p.pastEmployers}`);
+  if (p.personal) bg.push(`Remember: ${p.personal}`);
+  if (p.tags.length) bg.push(`Connection: ${p.tags.join(', ')}`);
+  const last = interactionsFor(d, p.id).reverse()[0];
+  if (last) bg.push(`Last time (${fmtDate(last.date)}): ${last.summary || INTERACTION_TYPES[last.type]}`);
+  d.tasks.filter((t) => t.personId === p.id && taskActive(d, t)).forEach((t) => bg.push(`${t.direction === 'owe' ? 'I owe' : 'Waiting on'}: ${t.text}`));
+  if (bg.length) { add('h2', 'Background'); bg.forEach((x) => add('bullet', x)); }
 
   add('h2', 'Notes'); add('p');
-  add('h2', 'Takeaways'); add('p');
-  add('h2', 'Personal details to remember'); add('p');
-  add('h2', 'To do'); add('p');
-  add('h2', 'Intros / people to contact'); add('p');
+  add('h2', 'Action items'); add('bullet');
 
-  const cats = [...new Set(d.questions.map((q) => q.category))];
-  if (cats.length) {
-    add('h2', 'Question bank (delete what you don’t need)');
-    cats.forEach((c) => { add('h3', c); d.questions.filter((q) => q.category === c).forEach((q) => add('bullet', q.text)); });
-  }
-  return { title: `${o.date} · ${kind} · ${p.name}${f ? ` · ${f.aliases[0] ?? f.name}` : ''}`, blocks: b };
+  return { title: `${kind} with ${p.name} – ${o.date} – Notes`, blocks: b };
 }

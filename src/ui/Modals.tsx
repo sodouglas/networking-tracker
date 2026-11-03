@@ -88,6 +88,7 @@ function QuickLog({ data, personId, interactionId, meetingId }: { data: Data; pe
         <Field label="Type"><Select value={i.type} options={TYPE_OPTIONS} onChange={(type) => up({ type })} /></Field>
         <Field label="Date"><input type="date" value={i.date} max="2100-01-01" onInput={(e) => up({ date: (e.target as HTMLInputElement).value })} /></Field>
         {(isConv || i.notesUrl) && <NotesField value={i.notesUrl ?? ''} onChange={(notesUrl) => up({ notesUrl })} disabled={!i.personId}
+          onCreated={(notesUrl) => actions.saveInteraction({ ...i, notesUrl })}
           build={() => notesDocSpec(data, { personId: i.personId, date: i.date, type: i.type })} />}
         <Field label="Summary" span={2}><Text value={i.summary} onInput={(summary) => up({ summary })} placeholder={isConv ? '20-min Zoom about M&A group' : 'Asked for info interview'} /></Field>
         {(isConv || i.takeaways) && <Field label="Key takeaways" span={2} hint="One per line. These feed follow-up drafts and the firm page."><Area value={i.takeaways} onInput={(takeaways) => up({ takeaways })} rows={4} /></Field>}
@@ -316,10 +317,10 @@ function MeetingEditor({ data, meetingId, personId, date }: { data: Data; meetin
     <Modal title={existing ? 'Edit scheduled conversation' : 'Schedule a conversation'}
       footer={<>
         {existing && <button class="btn ghost danger" onClick={() => { actions.deleteMeeting(m.id); closeModal(); }}>Delete</button>}
-        {existing && <a class="btn ghost" href={gcalUrl(data, m)} target="_blank" rel="noreferrer" title="Opens Google Calendar with this filled in">Add to Google Calendar ↗</a>}
-        <span class="small muted right">⌘↵ to save</span>
+        {existing && <a class="btn ghost" href={gcalUrl(data, m)} target="_blank" rel="noreferrer" title="Opens Google Calendar with this filled in">Google Calendar ↗</a>}
+        <span class="right" />
         <button class="btn ghost" onClick={closeModal}>Cancel</button>
-        {existing && <button class="btn ghost" onClick={() => { actions.saveMeeting(m); openModalLog(m.id); }}>It happened — log it</button>}
+        {existing && <button class="btn ghost" onClick={() => { actions.saveMeeting(m); openModalLog(m.id); }}>Log it</button>}
         <button class="btn primary" disabled={!valid} onClick={submit}>Save</button>
       </>}>
       <div class="form" onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); }}>
@@ -332,6 +333,7 @@ function MeetingEditor({ data, meetingId, personId, date }: { data: Data; meetin
         <Field label="Where / link" hint="Zoom link, phone number, café…"><Text value={m.where} onInput={(where) => up({ where })} placeholder="https://zoom.us/j/…" /></Field>
         <Field label="Notes" span={2}><Area value={m.notes} onInput={(notes) => up({ notes })} rows={2} /></Field>
         <NotesField value={m.notesUrl ?? ''} onChange={(notesUrl) => up({ notesUrl })} disabled={!m.personId}
+          onCreated={(notesUrl) => actions.saveMeeting({ ...m, notesUrl })}
           build={() => notesDocSpec(data, { personId: m.personId, date: m.date, type: m.type, where: m.where })} />
       </div>
     </Modal>
@@ -339,7 +341,7 @@ function MeetingEditor({ data, meetingId, personId, date }: { data: Data; meetin
 }
 
 /** Link to the Google Doc holding the notes for one conversation, with a one-click "create" in the web app. */
-function NotesField({ value, onChange, build, disabled }: { value: string; onChange: (v: string) => void; build: () => NotesSpec | null; disabled?: boolean }) {
+function NotesField({ value, onChange, onCreated, build, disabled }: { value: string; onChange: (v: string) => void; onCreated?: (url: string) => void; build: () => NotesSpec | null; disabled?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const canCreate = getState().backend === 'gas';
@@ -347,14 +349,14 @@ function NotesField({ value, onChange, build, disabled }: { value: string; onCha
     const spec = build();
     if (!spec) return;
     setBusy(true); setErr('');
-    try { onChange((await createNotesDoc(spec)).url); }
+    try { const url = (await createNotesDoc(spec)).url; onChange(url); onCreated?.(url); }
     catch (e: any) {
       const msg = String(e?.message ?? e);
       setErr(/not a function|createNotesDoc|documents/i.test(msg) ? 'The server script needs updating to create docs (Web-App-Setup → Updating). You can still paste a link.' : `Couldn’t create the doc: ${msg}`);
     } finally { setBusy(false); }
   };
   return (
-    <Field label="Notes doc" span={2} group hint={canCreate ? 'One Google Doc per conversation. “Create doc” makes one with their background, your questions and blank sections.' : 'Paste the link to the Google Doc holding your notes.'}>
+    <Field label="Notes doc" span={2} group hint={canCreate ? 'One Google Doc per conversation. “Create doc” makes one with their background and blank notes, and saves it to this entry right away.' : 'Paste the link to the Google Doc holding your notes.'}>
       <div class="with-link">
         <Text value={value} onInput={onChange} placeholder="https://docs.google.com/document/d/…" />
         {isUrl(value) && <a href={value.trim()} target="_blank" rel="noreferrer">open</a>}
