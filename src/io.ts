@@ -24,7 +24,7 @@ function tables(d: Data) {
       Name: p.name, Firm: firmName(d, p.firmId), 'Past employers': p.pastEmployers, Role: p.role, Title: p.title,
       'Grad year': p.gradYear ?? '', School: p.school, Tags: p.tags.join('; '), Email: p.email, LinkedIn: p.linkedin,
       'Other channel': p.otherChannel, Status: effectiveStatus(d, p), 'Where met': p.whereMet,
-      'Personal details': p.personal, Notes: p.notes,
+      'Personal details': p.personal, Notes: p.notes, 'Follow-up flag': p.flag ? (p.flag.note || 'yes') : '',
     })),
     Interactions: [...d.interactions].sort((a, b) => a.date.localeCompare(b.date)).map((i) => {
       const p = d.people.find((x) => x.id === i.personId);

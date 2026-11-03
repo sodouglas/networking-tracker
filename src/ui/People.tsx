@@ -67,7 +67,7 @@ export function PeopleList({ data }: { data: Data }) {
           <tbody>
             {rows.map(({ p, s, last, firm: fn }) => (
               <tr onClick={() => go(`people/${p.id}`)}>
-                <td class="strong">{p.name}{p.review && <span class="flag" title={p.review}>review</span>}</td>
+                <td class="strong">{p.name}{p.flag && <span class="flag-mark" title={p.flag.note || 'Flagged to follow up'}>⚑</span>}{p.review && <span class="flag" title={p.review}>review</span>}</td>
                 <td>{fn}</td>
                 <td class="muted">{[p.role, p.gradYear && `’${String(p.gradYear).slice(2)}`].filter(Boolean).join(' ')}</td>
                 <td>{p.tags.slice(0, 3).map((t) => <span class="tag sm">{t}</span>)}</td>
@@ -104,11 +104,20 @@ export function PersonDetail({ data, id }: { data: Data; id: string }) {
         <Pill s={s} />
         <span class="small muted">Firm: {firmName(data, p.firmId) || '—'} {p.firmId && <a href={`#/firms/${p.firmId}`}>open firm →</a>}</span>
         <div class="right row-gap">
+          {!p.flag && <button class="btn ghost" onClick={() => upd({ flag: { note: '', at: new Date().toISOString() } })} title="Show this person on Today until you clear it">⚑ Flag to follow up</button>}
           <button class="btn ghost" onClick={() => openModal({ kind: 'prep', personId: p.id })}>Prep sheet</button>
           <button class="btn ghost" onClick={() => openModal({ kind: 'compose', personId: p.id })} title={email ? '' : 'No email on file — you can still draft and copy the text'}>Draft message</button>
           <button class="btn primary" onClick={() => openModal({ kind: 'log', personId: p.id })}>Log interaction</button>
         </div>
       </div>
+      {p.flag && (
+        <div class="banner flagbar">
+          <span class="flag-mark">⚑</span><b>Follow up</b>
+          <input class="grow" autoFocus={!p.flag.note} placeholder="What do you want to remember? e.g. ask about the Q2 deal team" value={p.flag.note}
+            onInput={(e) => upd({ flag: { ...p.flag!, note: (e.target as HTMLInputElement).value } })} />
+          <button class="btn sm ghost" onClick={() => upd({ flag: undefined })}>Done</button>
+        </div>
+      )}
       {p.review && <div class="banner warn">Needs review: {p.review} <button class="btn sm ghost" onClick={() => upd({ review: undefined })}>Clear flag</button></div>}
       {dups.length > 0 && <div class="banner">Possible duplicate of {dups.map((d) => <a href={`#/people/${d.id}`}>{d.name}</a>)}. <button class="btn sm ghost" onClick={() => openModal({ kind: 'merge', type: 'person', id: p.id })}>Merge…</button></div>}
 
