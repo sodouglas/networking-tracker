@@ -218,6 +218,10 @@ ul.tight { margin: 4px 0; padding-left: 16px; } ul.tight li { margin: 2px 0; }
 .day .num { font-size: 11px; color: var(--ink-2); margin-bottom: 2px; }
 .ev { display: block; font-size: 11px; padding: 1px 4px; border-radius: 3px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .ev:hover { text-decoration: none; filter: brightness(.96); }
+.ev.task { display: flex; align-items: center; gap: 4px; }
+.ev.task input { width: 11px; height: 11px; margin: 0; flex: none; padding: 0; cursor: pointer; }
+.ev-text { flex: 1; min-width: 0; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev.task.done { opacity: .6; } .ev.task.done .ev-text { text-decoration: line-through; }
 .ev.meeting { background: #dbeaf6; color: #1d4f7a; font-weight: 550; }
 button.ev { border: 0; width: 100%; text-align: left; font: inherit; font-size: 11px; cursor: pointer; }
 .day { position: relative; }

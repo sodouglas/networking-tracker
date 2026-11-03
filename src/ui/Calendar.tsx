@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import type { Data, Deadline } from '../types';
+import type { Data, Deadline, Task } from '../types';
 import { INTERACTION_TYPES } from '../types';
 import { firmName, reminders, taskActive } from '../logic';
 import { actions } from '../store';
@@ -9,7 +9,7 @@ import { meetingTitle, timeLabel } from '../meetings';
 import { openModal } from './nav';
 import { Area, Combo, Empty, Field, Modal, Text, firmItems } from './common';
 
-interface Ev { date: string; label: string; kind: 'deadline' | 'task' | 'follow' | 'past' | 'meeting'; href?: string; unverified?: boolean; open?: () => void }
+interface Ev { date: string; label: string; kind: 'deadline' | 'task' | 'follow' | 'past' | 'meeting'; href?: string; unverified?: boolean; open?: () => void; task?: Task }
 
 export function Calendar({ data }: { data: Data }) {
   const now = new Date();
@@ -19,7 +19,11 @@ export function Calendar({ data }: { data: Data }) {
 
   const evs: Ev[] = [];
   data.deadlines.forEach((d) => evs.push({ date: d.date, label: d.name, kind: 'deadline', unverified: !d.verified }));
-  data.tasks.filter((x) => x.due && taskActive(data, x)).forEach((x) => evs.push({ date: x.due!, label: x.text, kind: 'task' }));
+  // Done tasks stay visible (struck through) so a mis-click can be undone.
+  data.tasks.filter((x) => x.due && (x.done || taskActive(data, x))).forEach((x) => {
+    const who = data.people.find((p) => p.id === x.personId)?.name;
+    evs.push({ date: x.due!, label: who ? `${x.text} · ${who}` : x.text, kind: 'task', task: x, open: () => openModal({ kind: 'task', taskId: x.id }) });
+  });
   data.meetings.forEach((m) => evs.push({ date: m.date, kind: 'meeting', label: `${timeLabel(m.time) ? timeLabel(m.time) + ' ' : ''}${meetingTitle(data, m)}`, open: () => openModal({ kind: 'meeting', meetingId: m.id }) }));
   reminders(data).filter((r) => r.kind !== 'no-reply').forEach((r) => {
     const p = data.people.find((x) => x.id === r.personId)!;
@@ -63,7 +67,12 @@ export function Calendar({ data }: { data: Data }) {
               <div class={cx('day', d.getMonth() !== ym.m && 'other', iso === t && 'today')}>
                 <div class="num">{d.getDate()}</div>
                 <button class="day-add" title="Schedule a conversation this day" aria-label="Schedule a conversation this day" onClick={() => openModal({ kind: 'meeting', date: iso })}>+</button>
-                {list.slice(0, 4).map((e) => e.open
+                {list.slice(0, 4).map((e) => e.task
+                  ? <div class={cx('ev task', e.task.done && 'done')} title={e.label}>
+                      <input type="checkbox" checked={e.task.done} onChange={() => actions.toggleTask(e.task!.id)} aria-label={e.task.done ? 'Mark not done' : 'Mark done'} />
+                      <button class="ev-text" onClick={e.open}>{e.label}</button>
+                    </div>
+                  : e.open
                   ? <button class={cx('ev', e.kind)} title={e.label} onClick={e.open}>{e.label}</button>
                   : e.href
                   ? <a class={cx('ev', e.kind)} href={e.href} title={e.label}>{e.label}</a>
