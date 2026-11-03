@@ -85,7 +85,7 @@ function QuickLog({ data, personId, interactionId }: { data: Data; personId?: st
         {!existing && <>
           <Field label="Add a task (optional)" span={2}>
             <div class="row-gap">
-              <select value={task.direction} onChange={(e) => setTask({ ...task, direction: (e.target as HTMLSelectElement).value as any })}><option value="owe">I owe</option><option value="owed">Owed to me</option></select>
+              <Select value={task.direction} options={[{ value: 'owe', label: 'I owe' }, { value: 'owed', label: 'Owed to me' }]} onChange={(direction) => setTask({ ...task, direction })} />
               <input class="grow" value={task.text} onInput={(e) => setTask({ ...task, text: (e.target as HTMLInputElement).value })} placeholder="e.g. Send resume / She'll intro me to a 2L" />
               <input type="date" value={task.due} onInput={(e) => setTask({ ...task, due: (e.target as HTMLInputElement).value })} />
             </div>

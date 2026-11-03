@@ -42,14 +42,106 @@ export const Text = ({ value, onInput, ...rest }: InputProps) => (
 export const Area = ({ value, onInput, rows = 3, ...rest }: { value: string; onInput: (v: string) => void; rows?: number; placeholder?: string }) => (
   <textarea {...rest} rows={rows} value={value} onInput={(e) => onInput((e.target as HTMLTextAreaElement).value)} />
 );
-export function Select<T extends string>(props: { value: T; options: readonly T[] | { value: T; label: string }[]; onChange: (v: T) => void; blank?: string }) {
+export type MenuItem = { value: string; label: string; sub?: string };
+
+/** Floating list used by Select and the suggestion inputs. Fixed-position so scrolling parents and modals never clip it. */
+function Menu(props: { anchor: HTMLElement | null; items: MenuItem[]; hi: number; selected?: string; onPick: (v: string) => void; onHover: (i: number) => void }) {
+  const [, tick] = useState(0);
+  const ref = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const re = (e: Event) => { if (e.type === 'scroll' && ref.current?.contains(e.target as Node)) return; tick((n) => n + 1); };
+    window.addEventListener('resize', re); window.addEventListener('scroll', re, true);
+    return () => { window.removeEventListener('resize', re); window.removeEventListener('scroll', re, true); };
+  }, []);
+  useEffect(() => { ref.current?.querySelector('.hi')?.scrollIntoView({ block: 'nearest' }); }, [props.hi]);
+  const r = props.anchor?.getBoundingClientRect();
+  if (!r || !props.items.length) return null;
+  const below = window.innerHeight - r.bottom;
+  const want = Math.min(260, props.items.length * 30 + 8);
+  const up = below < want && r.top > below;
+  const px = (n: number) => `${Math.round(n)}px`;
+  const style: Record<string, string> = { left: px(r.left), minWidth: px(r.width),
+    ...(up ? { bottom: px(window.innerHeight - r.top + 2), maxHeight: px(Math.min(260, r.top - 8)) } : { top: px(r.bottom + 2), maxHeight: px(Math.min(260, below - 8)) }) };
   return (
-    <select value={props.value} onChange={(e) => props.onChange((e.target as HTMLSelectElement).value as T)}>
-      {props.blank != null && <option value="">{props.blank}</option>}
-      {props.options.map((o: any) => typeof o === 'string'
-        ? <option value={o}>{o}</option>
-        : <option value={o.value}>{o.label}</option>)}
-    </select>
+    <ul class="menu" role="listbox" ref={ref} style={style} onMouseDown={(e) => e.preventDefault()} onClick={(e) => e.preventDefault()}>
+      {props.items.map((it, i) => (
+        <li role="option" aria-selected={it.value === props.selected} class={cx(i === props.hi && 'hi', it.value === props.selected && 'on')}
+          onMouseMove={() => i !== props.hi && props.onHover(i)} onClick={(e) => { e.preventDefault(); props.onPick(it.value); }}>
+          <span class="grow">{it.label}</span>{it.sub && <span class="sub">{it.sub}</span>}{it.value === props.selected && <span class="tick">✓</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Keyboard handling shared by the suggestion inputs. Returns true when it handled the key. */
+function listKeys(e: KeyboardEvent, s: { open: boolean; setOpen: (b: boolean) => void; hi: number; setHi: (n: number) => void; count: number; pick: () => void }) {
+  if (e.key === 'ArrowDown' && s.count) { e.preventDefault(); s.setOpen(true); s.setHi(Math.min(s.count - 1, s.hi + 1)); return true; }
+  if (e.key === 'ArrowUp' && s.open && s.count) { e.preventDefault(); s.setHi(Math.max(0, s.hi - 1)); return true; }
+  if (e.key === 'Enter' && s.open && s.hi >= 0 && s.hi < s.count) { e.preventDefault(); s.pick(); return true; }
+  if (e.key === 'Escape' && s.open) { e.preventDefault(); e.stopPropagation(); s.setOpen(false); return true; }
+  return false;
+}
+
+/** Drop-in replacement for <select> with our own list instead of the browser's. */
+export function Select<T extends string>(props: { value: T; options: readonly T[] | { value: T; label: string }[]; onChange: (v: T) => void; blank?: string }) {
+  const items: MenuItem[] = [
+    ...(props.blank != null ? [{ value: '', label: props.blank }] : []),
+    ...(props.options as any[]).map((o) => (typeof o === 'string' ? { value: o, label: o } : { value: o.value as string, label: o.label as string })),
+  ];
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const btn = useRef<HTMLButtonElement>(null);
+  const typed = useRef({ text: '', at: 0 });
+  const idx = items.findIndex((i) => i.value === props.value);
+  const show = () => { setHi(Math.max(0, idx)); setOpen(true); };
+  const pick = (v: string) => { setOpen(false); if (v !== props.value) props.onChange(v as T); };
+  const onKeyDown = (e: KeyboardEvent) => {
+    const k = e.key;
+    if (k === 'ArrowDown' || k === 'ArrowUp') {
+      e.preventDefault();
+      if (!open) show(); else setHi((h) => Math.max(0, Math.min(items.length - 1, h + (k === 'ArrowDown' ? 1 : -1))));
+    } else if (k === 'Home' || k === 'End') {
+      if (open) { e.preventDefault(); setHi(k === 'Home' ? 0 : items.length - 1); }
+    } else if (k === 'Enter' || k === ' ') {
+      e.preventDefault();
+      if (!open) show(); else if (items[hi]) pick(items[hi].value);
+    } else if (k === 'Escape') {
+      if (open) { e.preventDefault(); e.stopPropagation(); setOpen(false); }
+    } else if (k.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const now = Date.now();
+      typed.current = { text: (now - typed.current.at < 700 ? typed.current.text : '') + k.toLowerCase(), at: now };
+      const m = items.findIndex((i) => i.label.toLowerCase().startsWith(typed.current.text));
+      if (m >= 0) { if (open) setHi(m); else pick(items[m].value); }
+    }
+  };
+  return (
+    <>
+      <button type="button" ref={btn} class={cx('sel', open && 'open', props.value === '' && 'ph')} aria-haspopup="listbox" aria-expanded={open}
+        onClick={() => (open ? setOpen(false) : show())} onKeyDown={onKeyDown} onBlur={() => setOpen(false)}>
+        <span class="sel-label">{idx >= 0 ? items[idx].label : props.value}</span>
+      </button>
+      {open && <Menu anchor={btn.current} items={items} hi={hi} selected={props.value} onPick={pick} onHover={setHi} />}
+    </>
+  );
+}
+
+/** Text box with our own suggestion list (typing anything is still allowed). */
+export function Suggest(props: { value: string; onInput: (v: string) => void; suggestions: string[]; placeholder?: string; style?: Record<string, string> }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
+  const ref = useRef<HTMLInputElement>(null);
+  const q = norm(props.value);
+  const items: MenuItem[] = props.suggestions.filter((x) => x !== props.value && (!q || norm(x).includes(q))).map((x) => ({ value: x, label: x }));
+  const pick = (v: string) => { props.onInput(v); setOpen(false); setHi(-1); };
+  return (
+    <>
+      <input ref={ref} value={props.value} placeholder={props.placeholder} style={props.style} autoComplete="off"
+        onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
+        onInput={(e) => { props.onInput((e.target as HTMLInputElement).value); setOpen(true); setHi(-1); }}
+        onKeyDown={(e) => { listKeys(e, { open, setOpen, hi, setHi, count: items.length, pick: () => pick(items[hi].value) }); }} />
+      {open && <Menu anchor={ref.current} items={items} hi={hi} onPick={pick} onHover={setHi} />}
+    </>
   );
 }
 
@@ -75,6 +167,9 @@ export const Pill = ({ s, small }: { s: PersonStatus | string; small?: boolean }
 
 export function TagInput(props: { value: string[]; onChange: (v: string[]) => void; suggestions?: string[]; placeholder?: string }) {
   const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
+  const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Removed tags, newest last, so ⌘Z / Ctrl+Z can put them back where they were.
   const removed = useRef<{ tag: string; index: number }[]>([]);
@@ -83,8 +178,10 @@ export function TagInput(props: { value: string[]; onChange: (v: string[]) => vo
   const add = (t: string) => {
     const v = t.trim();
     if (v && !props.value.includes(v)) props.onChange([...props.value, v]);
-    setDraft('');
+    setDraft(''); setHi(-1);
   };
+  const dq = norm(draft);
+  const items: MenuItem[] = (props.suggestions ?? []).filter((x) => !props.value.includes(x) && (!dq || norm(x).includes(dq))).map((x) => ({ value: x, label: x }));
   const remove = (tag: string) => {
     const index = props.value.indexOf(tag);
     if (index < 0) return;
@@ -108,18 +205,19 @@ export function TagInput(props: { value: string[]; onChange: (v: string[]) => vo
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  const listId = useMemo(() => 'tags-' + Math.random().toString(36).slice(2), []);
   return (
-    <div class="tags-input" onClick={(e) => { if (e.target === e.currentTarget) inputRef.current?.focus(); }}>
+    <div class="tags-input" ref={boxRef} onClick={(e) => { if (e.target === e.currentTarget) inputRef.current?.focus(); }}>
       {props.value.map((t) => <span class="tag">{t}<button type="button" onClick={() => remove(t)} aria-label={`Remove ${t}`} title="Remove (⌘Z to undo)">×</button></span>)}
-      <input ref={inputRef} list={listId} value={draft} placeholder={props.value.length ? '' : props.placeholder ?? 'Add…'}
-        onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
+      <input ref={inputRef} value={draft} placeholder={props.value.length ? '' : props.placeholder ?? 'Add…'} autoComplete="off"
+        onFocus={() => setOpen(true)}
+        onInput={(e) => { setDraft((e.target as HTMLInputElement).value); setOpen(true); setHi(-1); }}
         onKeyDown={(e) => {
+          if (listKeys(e, { open, setOpen, hi, setHi, count: items.length, pick: () => add(items[hi].value) })) return;
           if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(draft); }
           if (e.key === 'Backspace' && !draft && props.value.length) remove(props.value[props.value.length - 1]);
         }}
-        onBlur={() => draft && add(draft)} />
-      <datalist id={listId}>{(props.suggestions ?? []).filter((s) => !props.value.includes(s)).map((s) => <option value={s} />)}</datalist>
+        onBlur={() => { setOpen(false); if (draft) add(draft); }} />
+      {open && <Menu anchor={boxRef.current} items={items} hi={hi} onPick={add} onHover={setHi} />}
     </div>
   );
 }

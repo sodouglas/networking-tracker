@@ -4,7 +4,7 @@ import { INTERACTION_TYPES } from '../types';
 import { actions } from '../store';
 import { DEFAULT_TEMPLATES, TEMPLATE_HELP } from '../seed';
 import { uid, cx } from '../util';
-import { Area, Field, Select, Text } from './common';
+import { Area, Field, Select, Suggest, Text } from './common';
 
 export function Templates({ data }: { data: Data }) {
   const [sel, setSel] = useState(data.templates[0]?.id ?? '');
@@ -45,14 +45,13 @@ export function Templates({ data }: { data: Data }) {
 
 export function Questions({ data }: { data: Data }) {
   const cats = [...new Set(data.questions.map((q) => q.category))];
-  const [draft, setDraft] = useState({ category: cats[0] ?? 'General', text: '' });
+  const [draft, setDraft] = useState({ category: '', text: '' });
   return (
     <div class="page">
       <div class="page-head"><h1>Question bank</h1><span class="muted">Pick from these on a person’s prep sheet before a call.</span></div>
       <section class="card">
         <div class="row-gap add-q">
-          <input list="qcats" value={draft.category} onInput={(e) => setDraft({ ...draft, category: (e.target as HTMLInputElement).value })} placeholder="Category" style={{ width: '160px' }} />
-          <datalist id="qcats">{cats.map((c) => <option value={c} />)}</datalist>
+          <Suggest value={draft.category} onInput={(category) => setDraft({ ...draft, category })} suggestions={cats} placeholder="Category (General)" style={{ width: '170px' }} />
           <input class="grow" value={draft.text} placeholder="Add a question…" onInput={(e) => setDraft({ ...draft, text: (e.target as HTMLInputElement).value })}
             onKeyDown={(e) => { if (e.key === 'Enter' && draft.text.trim()) { actions.updateData((d) => d.questions.push({ id: uid(), category: draft.category || 'General', text: draft.text.trim() })); setDraft({ ...draft, text: '' }); } }} />
         </div>
