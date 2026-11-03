@@ -1,141 +1,224 @@
-// Builds Firm-List-Import.xlsx: Vault 100 firms with NYC offices + large Toronto/Montreal/Vancouver firms.
-// Ranks are only filled where a 2026-27 source states them; everything else is tagged "Vault 100" without a rank.
+// Builds Firm-List-Import.csv/.xlsx from two sources only:
+//   - Vault 100 (2026-27): firms with a New York office. Ranks filled only where a source states them.
+//   - Chambers (tables as published Nov 2026): USA 2026 New York; Canada Ontario / Québec / BC / Nationwide.
+// Usage: node scripts/firms.mjs out/Firm-List-Import   (writes .csv and .xlsx)
 import XLSX from 'xlsx';
 
-const V = 'Vault 100 (2026-27)';
-const SRC = 'Ranks from Vault 2026-27 (Apr 2026) coverage; unranked = rank not published free — check vault.com.';
-const nyc = [
-  // [name, aliases, rank|null, note]
-  ['Cravath, Swaine & Moore LLP', 'Cravath', 1, ''],
-  ['Wachtell, Lipton, Rosen & Katz', 'Wachtell; WLRK', 2, 'Vault #1 in New York regional ranking and in General Corporate / M&A.'],
-  ['Skadden, Arps, Slate, Meagher & Flom LLP', 'Skadden', 3, 'Vault #1 in Tax.'],
-  ['Latham & Watkins LLP', 'Latham', 4, 'Vault #1 in Securities/Capital Markets.'],
-  ['Sullivan & Cromwell LLP', 'S&C', 5, ''],
-  ['Kirkland & Ellis LLP', 'K&E; Kirkland', 6, 'Vault #1 in Private Equity and Bankruptcy/Restructuring.'],
-  ['Davis Polk & Wardwell LLP', 'Davis Polk', 7, ''],
-  ['Gibson, Dunn & Crutcher LLP', 'Gibson Dunn', 8, ''],
-  ['Milbank LLP', 'Milbank', 9, ''],
-  ['Simpson Thacher & Bartlett LLP', 'Simpson Thacher; STB', 10, ''],
-  ['Paul, Weiss, Rifkind, Wharton & Garrison LLP', 'Paul Weiss', 13, 'Also has a Toronto office.'],
-  ['Susman Godfrey LLP', 'Susman', 19, 'Litigation.'],
-  ['Perkins Coie LLP', 'Perkins', 24, 'Combining with Ashurst.'],
-  ['WilmerHale', 'Wilmer Cutler Pickering Hale and Dorr', 25, ''],
-  ['Hogan Lovells', 'Hogan Lovells US LLP', 30, 'Combining with Cadwalader.'],
-  ['Willkie Farr & Gallagher LLP', 'Willkie', 35, ''],
-  ['Akin Gump Strauss Hauer & Feld LLP', 'Akin; Akin Gump', 38, ''],
-  ['Jenner & Block LLP', 'Jenner', 43, ''],
-  ['McDermott Will & Schulte LLP', 'McDermott; Schulte Roth & Zabel; McDermott Will & Emery', 46, 'Formed 2025 from McDermott Will & Emery + Schulte Roth & Zabel.'],
-  ['A&O Shearman', 'Allen & Overy; Shearman & Sterling', 56, ''],
-  ['Boies Schiller Flexner LLP', 'Boies Schiller; BSF', 61, 'Litigation.'],
-  ['Cadwalader, Wickersham & Taft LLP', 'Cadwalader', 64, 'Combining with Hogan Lovells.'],
-  ['Cahill Gordon & Reindel LLP', 'Cahill', 73, ''],
-  ['Cleary Gottlieb Steen & Hamilton LLP', 'Cleary', null, ''],
-  ['Covington & Burling LLP', 'Covington', null, 'Vault #1 in Washington, DC.'],
-  ['Debevoise & Plimpton LLP', 'Debevoise', null, ''],
-  ['Quinn Emanuel Urquhart & Sullivan, LLP', 'Quinn Emanuel; Quinn', null, 'Vault #1 in General Commercial Litigation.'],
-  ['Weil, Gotshal & Manges LLP', 'Weil', null, ''],
-  ['Sidley Austin LLP', 'Sidley', null, ''],
-  ['Ropes & Gray LLP', 'Ropes', null, 'Vault #1 in Boston.'],
-  ['Jones Day', '', null, ''],
-  ['White & Case LLP', 'W&C', null, 'Vault #1 in International.'],
-  ['Goodwin Procter LLP', 'Goodwin', null, ''],
-  ['Cooley LLP', 'Cooley', null, 'Vault #1 in Northern California and Emerging Companies/VC.'],
-  ['Freshfields LLP', 'Freshfields', null, ''],
-  ['Fried, Frank, Harris, Shriver & Jacobson LLP', 'Fried Frank', null, ''],
-  ['Proskauer Rose LLP', 'Proskauer', null, ''],
-  ['Arnold & Porter Kaye Scholer LLP', 'Arnold & Porter', null, ''],
-  ['Morgan, Lewis & Bockius LLP', 'Morgan Lewis', null, ''],
-  ['Mayer Brown LLP', 'Mayer Brown', null, ''],
-  ['Paul Hastings LLP', 'Paul Hastings', null, ''],
-  ['Orrick, Herrington & Sutcliffe LLP', 'Orrick', null, ''],
-  ['Wilson Sonsini Goodrich & Rosati', 'Wilson Sonsini; WSGR', null, ''],
-  ['Morrison & Foerster LLP', 'MoFo; Morrison Foerster', null, 'Top 25 in the 2026 edition.'],
-  ['Clifford Chance US LLP', 'Clifford Chance', null, ''],
-  ['Linklaters LLP', 'Linklaters', null, ''],
-  ['Dechert LLP', 'Dechert', null, ''],
-  ['King & Spalding LLP', 'King & Spalding', null, ''],
-  ['Vinson & Elkins LLP', 'V&E', null, 'Vault #1 in Texas and Energy.'],
-  ['Baker McKenzie', 'Baker & McKenzie', null, ''],
-  ['Winston & Strawn LLP', 'Winston', null, ''],
-  ['Katten Muchin Rosenman LLP', 'Katten', null, ''],
-  ['Greenberg Traurig, LLP', 'Greenberg; GT', null, ''],
-  ['Holland & Knight LLP', 'Holland & Knight', null, 'Vault #1 in Florida.'],
-  ['Baker Botts L.L.P.', 'Baker Botts', null, ''],
-  ['Alston & Bird LLP', 'Alston', null, ''],
-  ['Crowell & Moring LLP', 'Crowell', null, ''],
-  ['Hughes Hubbard & Reed LLP', 'Hughes Hubbard', null, ''],
-  ['Fish & Richardson P.C.', 'Fish', null, 'Vault #1 in Intellectual Property.'],
-  ['Fenwick & West LLP', 'Fenwick', null, ''],
-  ['Sheppard, Mullin, Richter & Hampton LLP', 'Sheppard Mullin; Sheppard', null, ''],
-  ['Mintz, Levin, Cohn, Ferris, Glovsky and Popeo, P.C.', 'Mintz', null, 'Also has a Toronto office (corporate) with a 2L program.'],
+// ---------- Chambers rankings (firm → list of [table, band]) ----------
+// Table codes: "Elite" and "HR" (Highly Regarded) are separate Chambers tables; Band 1 is highest within each.
+const CH = {};
+const add = (table, bands) => bands.forEach((names, i) => names.forEach((n) => (CH[n] ??= []).push(`${table} ${i + 1}`)));
+
+add('NY M&A Elite', [
+  ['Cravath', 'Davis Polk', 'Kirkland', 'Paul Weiss', 'Simpson Thacher', 'Skadden', 'Sullivan & Cromwell', 'Wachtell'],
+  ['Debevoise', 'Freshfields', 'Latham'], ['Cleary', 'Weil'], ['A&O Shearman', 'Gibson Dunn', 'Paul Hastings', 'White & Case', 'Willkie'],
+]);
+add('NY M&A HR', [
+  ['Fried Frank', 'Goodwin', 'Jones Day', 'Morgan Lewis', 'Ropes & Gray', 'Sidley'],
+  ['Clifford Chance', 'Cooley', 'Covington', 'Dechert', 'Milbank'],
+  ['Akin', 'Baker McKenzie', 'DLA Piper US', 'Hughes Hubbard', 'MoFo', 'Proskauer'],
+  ['Baker Botts', 'Fenwick', 'Hogan Lovells Cadwalader', 'Linklaters', 'McDermott', 'Seward & Kissel'],
+  ['Arnold & Porter', 'BakerHostetler', 'Dorsey', 'HSF Kramer', 'Mayer Brown', 'McGuireWoods', 'Mintz', 'Orrick', 'Reed Smith', 'V&E', 'WilmerHale'],
+]);
+add('NY Lit Elite', [
+  ['Cravath', 'Gibson Dunn', 'Kirkland', 'Latham', 'Paul Weiss', 'Quinn Emanuel', 'Skadden', 'Sullivan & Cromwell', 'Susman'],
+  ['Cleary', 'Davis Polk', 'Debevoise', 'Simpson Thacher', 'Wachtell', 'Weil', 'White & Case', 'WilmerHale'],
+  ['Cahill', 'Friedman Kaplan', 'King & Spalding', 'Milbank', 'Paul Hastings'],
+  ['Holwell Shuster', 'Jones Day', 'Kasowitz', 'Kobre & Kim', 'MoFo', "O'Melveny", 'Sidley'],
+]);
+add('ON Corp Elite', [
+  ['Blakes', 'Davies', 'Goodmans', 'McCarthy', 'Osler', 'Stikeman', 'Torys'],
+  ['Bennett Jones', 'Cassels', 'Fasken', 'Norton Rose'], ['BLG', 'DLA Piper Canada'],
+]);
+add('ON Corp HR', [
+  ['Aird & Berlis', 'Baker McKenzie', 'Miller Thomson', 'Torkin Manes', 'Wildeboer Dellelce'],
+  ['Blaney McMurtry', 'Dickinson Wright', 'Gowling', 'Loopstra Nixon'],
+]);
+add('ON Lit Elite', [
+  ['Blakes', 'Davies', 'Lax O\'Sullivan', 'Lenczner Slaght', 'McCarthy', 'Stikeman', 'Torys'],
+  ['Bennett Jones', 'Osler'], ['Goodmans', 'Norton Rose', 'Paliare Roland'],
+  ['Adair Goldblatt', 'Chernos Flaherty', 'Dentons', 'Fasken', 'Gowling'], ['BLG', 'McMillan', 'Stockwoods'],
+]);
+add('QC Corp Elite', [['Davies', 'Fasken', 'McCarthy', 'Norton Rose', 'Stikeman'], ['Blakes', 'Osler'], ['BLG', 'Dentons']]);
+add('QC Corp HR', [['BCF', 'Lavery']]); // other Québec "Highly Regarded" firms are tagged below without a band (editions disagree)
+add('QC Lit', [['Davies', 'McCarthy', 'Norton Rose', 'Stikeman']]);
+add('BC Corp Elite', [['Blakes', 'McCarthy'], ['Bennett Jones', 'BLG', 'Fasken', 'Lawson Lundell', 'Osler', 'Stikeman'], ['Farris', 'Norton Rose']]);
+add('BC Corp HR', [['DLA Piper Canada'], ['Cassels', 'Gowling', 'Mogan Daniels Slager'], ['Boughton', 'Sangra Moller', 'DuMoulin Black']]);
+add('BC Lit', [['Fasken', 'McCarthy', 'Nathanson Schachter']]);
+add('BC Lit HR', [['Hunter Litigation Chambers', 'Poulus Ensom Smith']]);
+add('Canada Lit', [['Blakes', 'Davies', 'McCarthy']]);
+['KRB', 'Langlois', 'Prelia', 'Stein Monast', 'Lapointe Rosenstein', 'Therrien Couture'].forEach((n) => (CH[n] ??= []).push('QC Corp HR'));
+
+// ---------- firms ----------
+// [key (matches CH), full name, other names, market, offices, vault rank | 'V' (on Vault 100, rank not published) | null, note]
+const NYC = 'New York';
+const firms = [
+  ['Cravath', 'Cravath, Swaine & Moore LLP', 'Cravath', 'NYC', NYC, 1, ''],
+  ['Wachtell', 'Wachtell, Lipton, Rosen & Katz', 'Wachtell; WLRK', 'NYC', NYC, 2, 'Vault #1 in the New York regional ranking.'],
+  ['Skadden', 'Skadden, Arps, Slate, Meagher & Flom LLP', 'Skadden', 'NYC', NYC, 3, ''],
+  ['Latham', 'Latham & Watkins LLP', 'Latham', 'NYC', NYC, 4, ''],
+  ['Sullivan & Cromwell', 'Sullivan & Cromwell LLP', 'S&C', 'NYC', NYC, 5, ''],
+  ['Kirkland', 'Kirkland & Ellis LLP', 'K&E; Kirkland', 'NYC', NYC, 6, ''],
+  ['Davis Polk', 'Davis Polk & Wardwell LLP', 'Davis Polk', 'NYC', NYC, 7, ''],
+  ['Gibson Dunn', 'Gibson, Dunn & Crutcher LLP', 'Gibson Dunn', 'NYC', NYC, 8, ''],
+  ['Milbank', 'Milbank LLP', 'Milbank', 'NYC', NYC, 9, ''],
+  ['Simpson Thacher', 'Simpson Thacher & Bartlett LLP', 'Simpson Thacher; STB', 'NYC', NYC, 10, ''],
+  ['Paul Weiss', 'Paul, Weiss, Rifkind, Wharton & Garrison LLP', 'Paul Weiss', 'NYC', 'New York, Toronto', 13, ''],
+  ['Susman', 'Susman Godfrey LLP', 'Susman', 'NYC', NYC, 19, 'Litigation boutique.'],
+  ['Perkins Coie', 'Perkins Coie LLP', 'Perkins', 'NYC', NYC, 24, 'Combining with Ashurst.'],
+  ['WilmerHale', 'WilmerHale', 'Wilmer Cutler Pickering Hale and Dorr', 'NYC', NYC, 25, ''],
+  ['Hogan Lovells Cadwalader', 'Hogan Lovells Cadwalader', 'Hogan Lovells; Cadwalader; Cadwalader, Wickersham & Taft', 'NYC', NYC, null, 'Merged firm. Vault 2026-27 ranked Hogan Lovells #30 and Cadwalader #64 before combining.'],
+  ['Willkie', 'Willkie Farr & Gallagher LLP', 'Willkie', 'NYC', NYC, 35, ''],
+  ['Akin', 'Akin Gump Strauss Hauer & Feld LLP', 'Akin; Akin Gump', 'NYC', NYC, 38, ''],
+  ['Jenner', 'Jenner & Block LLP', 'Jenner', 'NYC', NYC, 43, ''],
+  ['McDermott', 'McDermott Will & Schulte LLP', 'McDermott; Schulte Roth & Zabel; McDermott Will & Emery', 'NYC', NYC, 46, ''],
+  ['A&O Shearman', 'A&O Shearman', 'Allen & Overy; Shearman & Sterling', 'NYC', NYC, 56, ''],
+  ['Boies', 'Boies Schiller Flexner LLP', 'Boies Schiller; BSF', 'NYC', NYC, 61, 'Litigation.'],
+  ['Cahill', 'Cahill Gordon & Reindel LLP', 'Cahill', 'NYC', NYC, 73, ''],
+  ['Cleary', 'Cleary Gottlieb Steen & Hamilton LLP', 'Cleary', 'NYC', NYC, 'V', ''],
+  ['Covington', 'Covington & Burling LLP', 'Covington', 'NYC', NYC, 'V', ''],
+  ['Debevoise', 'Debevoise & Plimpton LLP', 'Debevoise', 'NYC', NYC, 'V', ''],
+  ['Quinn Emanuel', 'Quinn Emanuel Urquhart & Sullivan, LLP', 'Quinn Emanuel; Quinn', 'NYC', NYC, 'V', ''],
+  ['Weil', 'Weil, Gotshal & Manges LLP', 'Weil', 'NYC', NYC, 'V', ''],
+  ['Sidley', 'Sidley Austin LLP', 'Sidley', 'NYC', NYC, 'V', ''],
+  ['Ropes & Gray', 'Ropes & Gray LLP', 'Ropes', 'NYC', NYC, 'V', ''],
+  ['Jones Day', 'Jones Day', '', 'NYC', NYC, 'V', ''],
+  ['White & Case', 'White & Case LLP', 'W&C', 'NYC', NYC, 'V', ''],
+  ['Goodwin', 'Goodwin Procter LLP', 'Goodwin', 'NYC', NYC, 'V', ''],
+  ['Cooley', 'Cooley LLP', 'Cooley', 'NYC', NYC, 'V', ''],
+  ['Freshfields', 'Freshfields LLP', 'Freshfields; Freshfields US LLP', 'NYC', NYC, 'V', ''],
+  ['Fried Frank', 'Fried, Frank, Harris, Shriver & Jacobson LLP', 'Fried Frank', 'NYC', NYC, 'V', ''],
+  ['Proskauer', 'Proskauer Rose LLP', 'Proskauer', 'NYC', NYC, 'V', ''],
+  ['Arnold & Porter', 'Arnold & Porter Kaye Scholer LLP', 'Arnold & Porter', 'NYC', NYC, 'V', ''],
+  ['Morgan Lewis', 'Morgan, Lewis & Bockius LLP', 'Morgan Lewis', 'NYC', NYC, 'V', ''],
+  ['Mayer Brown', 'Mayer Brown LLP', 'Mayer Brown', 'NYC', NYC, 'V', ''],
+  ['Paul Hastings', 'Paul Hastings LLP', 'Paul Hastings', 'NYC', NYC, 'V', ''],
+  ['Orrick', 'Orrick, Herrington & Sutcliffe LLP', 'Orrick', 'NYC', NYC, 'V', ''],
+  ['Wilson Sonsini', 'Wilson Sonsini Goodrich & Rosati', 'Wilson Sonsini; WSGR', 'NYC', NYC, 'V', ''],
+  ['MoFo', 'Morrison & Foerster LLP', 'MoFo; Morrison Foerster', 'NYC', NYC, 'V', ''],
+  ['Clifford Chance', 'Clifford Chance US LLP', 'Clifford Chance', 'NYC', NYC, 'V', ''],
+  ['Linklaters', 'Linklaters LLP', 'Linklaters', 'NYC', NYC, 'V', ''],
+  ['Dechert', 'Dechert LLP', 'Dechert', 'NYC', NYC, 'V', ''],
+  ['King & Spalding', 'King & Spalding LLP', 'King & Spalding', 'NYC', NYC, 'V', ''],
+  ['V&E', 'Vinson & Elkins LLP', 'V&E', 'NYC', NYC, 'V', ''],
+  ['Baker McKenzie', 'Baker McKenzie', 'Baker & McKenzie', 'NYC', 'New York, Toronto', 'V', ''],
+  ['Winston', 'Winston & Strawn LLP', 'Winston', 'NYC', NYC, 'V', ''],
+  ['Katten', 'Katten Muchin Rosenman LLP', 'Katten', 'NYC', NYC, 'V', ''],
+  ['Greenberg', 'Greenberg Traurig, LLP', 'Greenberg; GT', 'NYC', NYC, 'V', ''],
+  ['Holland & Knight', 'Holland & Knight LLP', 'Holland & Knight', 'NYC', NYC, 'V', ''],
+  ['Baker Botts', 'Baker Botts L.L.P.', 'Baker Botts', 'NYC', NYC, 'V', ''],
+  ['Alston', 'Alston & Bird LLP', 'Alston', 'NYC', NYC, 'V', ''],
+  ['Crowell', 'Crowell & Moring LLP', 'Crowell', 'NYC', NYC, 'V', ''],
+  ['Hughes Hubbard', 'Hughes Hubbard & Reed LLP', 'Hughes Hubbard', 'NYC', NYC, 'V', ''],
+  ['Fish', 'Fish & Richardson P.C.', 'Fish', 'NYC', NYC, 'V', 'Vault #1 in Intellectual Property.'],
+  ['Fenwick', 'Fenwick & West LLP', 'Fenwick', 'NYC', NYC, 'V', ''],
+  ['Sheppard Mullin', 'Sheppard, Mullin, Richter & Hampton LLP', 'Sheppard Mullin', 'NYC', NYC, 'V', ''],
+  ['Mintz', 'Mintz, Levin, Cohn, Ferris, Glovsky and Popeo, P.C.', 'Mintz', 'NYC', 'New York, Boston, Toronto', 'V', 'Toronto office hires 2L summers.'],
+  // Chambers-only, New York
+  ['Seward & Kissel', 'Seward & Kissel LLP', 'Seward & Kissel', 'NYC', NYC, null, ''],
+  ['BakerHostetler', 'BakerHostetler LLP', 'BakerHostetler; Baker Hostetler', 'NYC', NYC, null, ''],
+  ['Dorsey', 'Dorsey & Whitney LLP', 'Dorsey', 'NYC', NYC, null, ''],
+  ['HSF Kramer', 'HSF Kramer', 'Kramer Levin; Herbert Smith Freehills', 'NYC', NYC, null, 'Formed 2025 from Herbert Smith Freehills + Kramer Levin.'],
+  ['McGuireWoods', 'McGuireWoods LLP', 'McGuireWoods', 'NYC', NYC, null, ''],
+  ['Reed Smith', 'Reed Smith LLP', 'Reed Smith', 'NYC', NYC, null, ''],
+  ['DLA Piper US', 'DLA Piper LLP (US)', 'DLA Piper US', 'NYC', NYC, null, 'Separate entry from DLA Piper (Canada).'],
+  ['Friedman Kaplan', 'Friedman Kaplan Seiler Adelman & Robbins LLP', 'Friedman Kaplan', 'NYC', NYC, null, 'Litigation boutique.'],
+  ['Holwell Shuster', 'Holwell Shuster & Goldberg LLP', 'Holwell Shuster', 'NYC', NYC, null, 'Litigation boutique.'],
+  ['Kasowitz', 'Kasowitz LLP', 'Kasowitz', 'NYC', NYC, null, 'Litigation.'],
+  ['Kobre & Kim', 'Kobre & Kim LLP', 'Kobre & Kim', 'NYC', NYC, null, 'Litigation and investigations.'],
+  ["O'Melveny", "O'Melveny & Myers LLP", "O'Melveny", 'NYC', NYC, null, ''],
+
+  // Canada — national
+  ['Blakes', 'Blake, Cassels & Graydon LLP', 'Blakes; Blake Cassels', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', null, ''],
+  ['Davies', 'Davies Ward Phillips & Vineberg LLP', 'Davies', 'Toronto', 'Toronto, Montreal, New York', null, ''],
+  ['Goodmans', 'Goodmans LLP', 'Goodmans', 'Toronto', 'Toronto', null, ''],
+  ['McCarthy', 'McCarthy Tétrault LLP', 'McCarthy; McCarthys; McCarthy Tetrault', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Quebec City', null, ''],
+  ['Osler', 'Osler, Hoskin & Harcourt LLP', 'Osler', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, New York', null, ''],
+  ['Stikeman', 'Stikeman Elliott LLP', 'Stikeman', 'Montreal', 'Montreal, Toronto, Vancouver, Calgary, Ottawa', null, ''],
+  ['Torys', 'Torys LLP', 'Torys', 'Toronto', 'Toronto, Montreal, Calgary, New York', null, ''],
+  ['Bennett Jones', 'Bennett Jones LLP', 'Bennett Jones', 'Toronto', 'Toronto, Calgary, Vancouver, Montreal', null, ''],
+  ['BLG', 'Borden Ladner Gervais LLP', 'BLG; Borden Ladner', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', null, ''],
+  ['Fasken', 'Fasken', 'Fasken Martineau', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, Quebec City', null, ''],
+  ['Gowling', 'Gowling WLG (Canada) LLP', 'Gowling; Gowlings', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', null, ''],
+  ['Norton Rose', 'Norton Rose Fulbright Canada LLP', 'Norton Rose; NRF', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, Quebec City', null, ''],
+  ['Dentons', 'Dentons Canada LLP', 'Dentons', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary', null, ''],
+  ['McMillan', 'McMillan LLP', 'McMillan', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', null, ''],
+  ['Cassels', 'Cassels Brock & Blackwell LLP', 'Cassels Brock', 'Toronto', 'Toronto, Vancouver, Calgary', null, ''],
+  ['Miller Thomson', 'Miller Thomson LLP', 'Miller Thomson', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary', null, ''],
+  ['DLA Piper Canada', 'DLA Piper (Canada) LLP', 'DLA Piper Canada', 'Vancouver', 'Vancouver, Toronto, Calgary, Montreal', null, ''],
+  // Toronto
+  ['Aird & Berlis', 'Aird & Berlis LLP', 'Aird & Berlis', 'Toronto', 'Toronto', null, ''],
+  ['Torkin Manes', 'Torkin Manes LLP', 'Torkin Manes', 'Toronto', 'Toronto', null, ''],
+  ['Wildeboer Dellelce', 'Wildeboer Dellelce LLP', 'Wildeboer Dellelce; WD', 'Toronto', 'Toronto', null, ''],
+  ['Blaney McMurtry', 'Blaney McMurtry LLP', 'Blaney McMurtry; Blaneys', 'Toronto', 'Toronto', null, ''],
+  ['Dickinson Wright', 'Dickinson Wright LLP', 'Dickinson Wright', 'Toronto', 'Toronto (US firm)', null, ''],
+  ['Loopstra Nixon', 'Loopstra Nixon LLP', 'Loopstra Nixon', 'Toronto', 'Toronto area', null, ''],
+  ["Lax O'Sullivan", "Lax O'Sullivan Lisus Gottlieb LLP", "Lax O'Sullivan; LOLG", 'Toronto', 'Toronto', null, 'Litigation boutique.'],
+  ['Lenczner Slaght', 'Lenczner Slaght LLP', 'Lenczner Slaght; Lenczner', 'Toronto', 'Toronto', null, 'Litigation boutique.'],
+  ['Paliare Roland', 'Paliare Roland Rosenberg Rothstein LLP', 'Paliare Roland; Paliares', 'Toronto', 'Toronto', null, 'Litigation boutique.'],
+  ['Adair Goldblatt', 'Adair Goldblatt Bieber LLP', 'Adair Goldblatt Bieber; AGB', 'Toronto', 'Toronto', null, 'Litigation boutique.'],
+  ['Chernos Flaherty', 'Chernos Flaherty Svonkin LLP', 'Chernos Flaherty Svonkin; CFS', 'Toronto', 'Toronto', null, 'Litigation boutique.'],
+  ['Stockwoods', 'Stockwoods LLP', 'Stockwoods', 'Toronto', 'Toronto', null, 'Litigation boutique.'],
+  // Montréal / Québec
+  ['BCF', 'BCF Business Law', 'BCF; BCF LLP', 'Montreal', 'Montreal, Quebec City', null, ''],
+  ['Lavery', 'Lavery, de Billy LLP', 'Lavery', 'Montreal', 'Montreal, Quebec City', null, ''],
+  ['Langlois', 'Langlois Lawyers LLP', 'Langlois', 'Montreal', 'Montreal, Quebec City', null, ''],
+  ['KRB', 'KRB Lawyers', 'KRB', 'Montreal', 'Montreal', null, ''],
+  ['Prelia', 'Prelia', 'Prelia', 'Montreal', 'Montreal', null, ''],
+  ['Stein Monast', 'Stein Monast L.L.P.', 'Stein Monast', 'Montreal', 'Quebec City', null, 'Québec City firm.'],
+  ['Lapointe Rosenstein', 'Lapointe Rosenstein Marchand Melançon LLP', 'Lapointe Rosenstein; LRMM', 'Montreal', 'Montreal', null, ''],
+  ['Therrien Couture', 'Therrien Couture Joli-Coeur LLP', 'Therrien Couture; TCJ', 'Montreal', 'Montreal, Quebec', null, ''],
+  // Vancouver
+  ['Lawson Lundell', 'Lawson Lundell LLP', 'Lawson Lundell', 'Vancouver', 'Vancouver, Calgary, Kelowna', null, ''],
+  ['Farris', 'Farris LLP', 'Farris', 'Vancouver', 'Vancouver, Victoria, Kelowna', null, ''],
+  ['Mogan Daniels Slager', 'Mogan Daniels Slager LLP', 'Mogan Daniels Slager; MDS', 'Vancouver', 'Vancouver', null, ''],
+  ['Boughton', 'Boughton Law Corporation', 'Boughton', 'Vancouver', 'Vancouver', null, ''],
+  ['Sangra Moller', 'Sangra Moller LLP', 'Sangra Moller', 'Vancouver', 'Vancouver', null, ''],
+  ['DuMoulin Black', 'DuMoulin Black LLP', 'DuMoulin Black', 'Vancouver', 'Vancouver', null, ''],
+  ['Nathanson Schachter', 'Nathanson, Schachter & Thompson LLP', 'Nathanson Schachter', 'Vancouver', 'Vancouver', null, 'Litigation boutique.'],
+  ['Hunter Litigation Chambers', 'Hunter Litigation Chambers', 'Hunter Litigation', 'Vancouver', 'Vancouver', null, 'Litigation boutique.'],
+  ['Poulus Ensom Smith', 'Poulus Ensom Smith LLP', 'Poulus Ensom Smith', 'Vancouver', 'Vancouver', null, 'Litigation boutique.'],
 ];
 
-const canada = [
-  // [name, aliases, market, offices, tiers, note]
-  ['Blake, Cassels & Graydon LLP', 'Blakes; Blake Cassels', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', 'Seven Sisters', ''],
-  ['Davies Ward Phillips & Vineberg LLP', 'Davies', 'Toronto', 'Toronto, Montreal, New York', 'Seven Sisters', ''],
-  ['Goodmans LLP', 'Goodmans', 'Toronto', 'Toronto', 'Seven Sisters', ''],
-  ['McCarthy Tétrault LLP', 'McCarthy; McCarthys; McCarthy Tetrault', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Quebec City, New York', 'Seven Sisters', ''],
-  ['Osler, Hoskin & Harcourt LLP', 'Osler', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, New York', 'Seven Sisters', ''],
-  ['Stikeman Elliott LLP', 'Stikeman', 'Montreal', 'Montreal, Toronto, Vancouver, Calgary, Ottawa, New York', 'Seven Sisters', ''],
-  ['Torys LLP', 'Torys', 'Toronto', 'Toronto, Montreal, Calgary, New York', 'Seven Sisters', ''],
-  ['Bennett Jones LLP', 'Bennett Jones', 'Toronto', 'Toronto, Calgary, Vancouver, Montreal, Ottawa, Edmonton, New York', 'National', ''],
-  ['Borden Ladner Gervais LLP', 'BLG; Borden Ladner', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', 'National', ''],
-  ['Fasken Martineau DuMoulin LLP', 'Fasken', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, Quebec City', 'National', ''],
-  ['Gowling WLG (Canada) LLP', 'Gowling; Gowlings', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', 'National', ''],
-  ['Norton Rose Fulbright Canada LLP', 'Norton Rose; NRF', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, Quebec City', 'National', 'Global firm; US offices include New York.'],
-  ['Dentons Canada LLP', 'Dentons', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa, Edmonton', 'National', 'Global firm.'],
-  ['McMillan LLP', 'McMillan', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary, Ottawa', 'National', ''],
-  ['Cassels Brock & Blackwell LLP', 'Cassels', 'Toronto', 'Toronto, Vancouver, Calgary', 'National', ''],
-  ['Miller Thomson LLP', 'Miller Thomson', 'Toronto', 'Toronto, Montreal, Vancouver, Calgary', 'National', ''],
-  ['DLA Piper (Canada) LLP', 'DLA Piper', 'Vancouver', 'Vancouver, Toronto, Calgary, Montreal, Edmonton', 'National', 'Global firm; US offices include New York.'],
-  ['Aird & Berlis LLP', 'Aird & Berlis', 'Toronto', 'Toronto', 'Bay Street', ''],
-  ['Fogler, Rubinoff LLP', 'Foglers', 'Toronto', 'Toronto', 'Bay Street', ''],
-  ['WeirFoulds LLP', 'WeirFoulds', 'Toronto', 'Toronto', 'Bay Street', ''],
-  ['Lenczner Slaght LLP', 'Lenczner Slaght', 'Toronto', 'Toronto', 'Boutique', 'Litigation boutique.'],
-  ['Lavery, de Billy LLP', 'Lavery', 'Montreal', 'Montreal, Quebec City', 'Quebec', ''],
-  ['Langlois Lawyers LLP', 'Langlois', 'Montreal', 'Montreal, Quebec City', 'Quebec', ''],
-  ['BCF Business Law', 'BCF', 'Montreal', 'Montreal, Quebec City', 'Quebec', ''],
-  ['De Grandpré Chait LLP', 'De Grandpré Chait; DGC', 'Montreal', 'Montreal', 'Quebec', ''],
-  ['IMK LLP', 'IMK; Irving Mitchell Kalichman', 'Montreal', 'Montreal', 'Quebec', ''],
-  ['Woods LLP', 'Woods', 'Montreal', 'Montreal', 'Boutique', 'Litigation boutique.'],
-  ['Robinson Sheppard Shapiro LLP', 'RSS', 'Montreal', 'Montreal', 'Quebec', ''],
-  ['Lawson Lundell LLP', 'Lawson Lundell', 'Vancouver', 'Vancouver, Calgary, Yellowknife', 'BC', ''],
-  ['Farris LLP', 'Farris', 'Vancouver', 'Vancouver, Victoria, Kelowna, Calgary', 'BC', ''],
-  ['Clark Wilson LLP', 'Clark Wilson', 'Vancouver', 'Vancouver', 'BC', ''],
-  ['Harper Grey LLP', 'Harper Grey', 'Vancouver', 'Vancouver', 'BC', 'Litigation-focused.'],
-  ['Alexander Holburn Beaudin + Lang LLP', 'Alexander Holburn; AHBL', 'Vancouver', 'Vancouver, Toronto', 'BC', ''],
-];
+const seen = new Set(firms.map((f) => f[0]));
+const unknown = Object.keys(CH).filter((k) => !seen.has(k));
+if (unknown.length) throw new Error('Chambers names with no firm row: ' + unknown.join(', '));
 
-const rows = [];
-for (const [name, aliases, rank, note] of nyc) {
-  const tier = rank && rank <= 10 ? 'Vault 10' : rank && rank <= 25 ? 'Vault 25' : 'Vault 100';
-  rows.push({
-    'Firm Name': name, 'Other names': aliases, Type: 'firm', Market: 'NYC', Offices: 'New York',
-    Tiers: tier, Status: 'Not Started', 'How I Found Them': V,
-    Notes: [rank ? `Vault 100 2026-27: #${rank}.` : 'Vault 100 2026-27 (rank not checked).', note].filter(Boolean).join(' '),
-  });
-}
-for (const [name, aliases, market, offices, tier, note] of canada) {
-  rows.push({
-    'Firm Name': name, 'Other names': aliases, Type: 'firm', Market: market, Offices: offices,
-    Tiers: tier, Status: 'Not Started', 'How I Found Them': 'Large Canadian firms list (Nov 2026)',
-    Notes: [note, 'Offices from memory — check the firm site.'].filter(Boolean).join(' '),
-  });
-}
+const SEVEN = new Set(['Blakes', 'Davies', 'Goodmans', 'McCarthy', 'Osler', 'Stikeman', 'Torys']);
+const label = (t) => t.replace(/ (\d)$/, ' — Band $1').replace(/^(NY|ON|QC|BC)/, (m) => ({ NY: 'New York', ON: 'Ontario', QC: 'Québec', BC: 'BC' }[m]))
+  .replace('M&A Elite', 'Corporate/M&A: The Elite').replace('M&A HR', 'Corporate/M&A: Highly Regarded')
+  .replace('Lit Elite', 'Litigation: The Elite').replace('Lit HR', 'Litigation: Highly Regarded').replace(/ Lit\b(?!igation)/, ' Litigation')
+  .replace('Corp Elite', 'Corporate/Commercial: The Elite').replace('Corp HR', 'Corporate/Commercial: Highly Regarded');
 
-const wb = XLSX.utils.book_new();
+const rows = firms.map(([key, name, aliases, market, offices, vault, note]) => {
+  const ch = CH[key] ?? [];
+  const tiers = [];
+  if (typeof vault === 'number') tiers.push(vault <= 10 ? 'Vault 10' : vault <= 25 ? 'Vault 25' : 'Vault 100');
+  else if (vault === 'V') tiers.push('Vault 100');
+  if (SEVEN.has(key)) tiers.push('Seven Sisters');
+  if (ch.some((t) => /(Elite|^QC Lit|^BC Lit|^Canada Lit) 1$/.test(t))) tiers.push('Chambers Band 1');
+  const sources = [
+    typeof vault === 'number' ? `Vault 100 2026-27: #${vault}.` : vault === 'V' ? 'Vault 100 2026-27 (rank not published free).' : '',
+    ch.length ? `Chambers: ${ch.map(label).join('; ')}.` : '',
+    note,
+  ].filter(Boolean).join(' ');
+  return {
+    'Firm Name': name, 'Other names': aliases, Type: 'firm', Market: market, Offices: offices, Tiers: tiers.join('; '),
+    Status: 'Not Started', 'How I Found Them': [vault != null ? 'Vault 100' : '', ch.length ? 'Chambers' : ''].filter(Boolean).join(' + '),
+    Notes: sources,
+  };
+});
+const orphan = rows.filter((r) => !r['How I Found Them']);
+if (orphan.length) throw new Error('Firms with no source: ' + orphan.map((r) => r['Firm Name']).join(', '));
+
+const out = process.argv[2] ?? 'Firm-List-Import';
 const ws = XLSX.utils.json_to_sheet(rows);
-ws['!cols'] = [{ wch: 44 }, { wch: 30 }, { wch: 6 }, { wch: 10 }, { wch: 40 }, { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 70 }];
+require_fs().writeFileSync(out + '.csv', XLSX.utils.sheet_to_csv(ws));
+const wb = XLSX.utils.book_new();
+ws['!cols'] = [{ wch: 44 }, { wch: 30 }, { wch: 6 }, { wch: 10 }, { wch: 40 }, { wch: 30 }, { wch: 12 }, { wch: 20 }, { wch: 90 }];
 XLSX.utils.book_append_sheet(wb, ws, 'Firms to import');
-const about = [
-  ['Firm list for import'], [],
-  ['How to use', 'Tracker → Settings → Import → choose this file. Firms already in the tracker are skipped.'],
-  ['NYC', 'Firms on the Vault 100 (2026-27) that have a New York office. Firms without one (e.g. Munger Tolles, Kellogg Hansen) are left out.'],
-  ['Ranks', SRC],
-  ['Canada', 'Seven Sisters, other national firms, and large Montreal and Vancouver firms. Offices are from memory; check each firm site.'],
-  ['Status', 'All imported as "Not Started" so they stay separate from firms you are actively researching.'],
-];
-XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(about), 'About');
-XLSX.writeFile(wb, process.argv[2] ?? 'Firm-List-Import.xlsx');
-console.log(`${nyc.length} NYC + ${canada.length} Canada = ${rows.length} firms`);
+XLSX.writeFile(wb, out + '.xlsx');
+const by = (m) => rows.filter((r) => r.Market === m).length;
+console.log(`${rows.length} firms: NYC ${by('NYC')}, Toronto ${by('Toronto')}, Montreal ${by('Montreal')}, Vancouver ${by('Vancouver')}; with Chambers ranks ${rows.filter((r) => r.Notes.includes('Chambers')).length}`);
+
+function require_fs() { return globalThis.process.getBuiltinModule('fs'); }

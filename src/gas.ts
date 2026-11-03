@@ -33,21 +33,30 @@ const ls = {
   clear() { try { localStorage.removeItem(PENDING_KEY); } catch { /* */ } },
 };
 
-/** Add Gmail log entries to timelines. Attaches the link to a matching manual entry instead of duplicating it. */
+/** Sync Gmail log entries into timelines (adds new, removes withdrawn). Attaches the link to a matching manual entry instead of duplicating it. Returns number of changes. */
 export function mergeGmail(d: Data, emails: GmailEntry[]): number {
   let added = 0;
+  // Entries the Gmail sync no longer lists (label removed, contact removed) are dropped from timelines too.
+  const listed = new Set(emails.map((e) => e.key));
+  const before = d.interactions.length;
+  d.interactions = d.interactions.filter((i) => i.source !== 'gmail' || listed.has(i.gmailKey ?? i.id.slice(3)));
+  added += before - d.interactions.length;
+  for (const i of d.interactions) {
+    if (!i.source && i.gmailKey && !listed.has(i.gmailKey)) { delete i.gmailKey; delete i.link; added++; }
+  }
+  const known = new Set(d.interactions.map((i) => i.gmailKey ?? (i.source === 'gmail' ? i.id.slice(3) : '')));
   const people = new Set(d.people.map((p) => p.id));
   for (const e of emails) {
     const id = 'gm-' + e.key;
-    if (!people.has(e.personId) || d.interactions.some((i) => i.id === id)) continue;
+    if (!people.has(e.personId) || known.has(e.key)) continue;
     const date = isoDate(new Date(e.date));
     const sent = e.direction === 'sent';
-    const twin = d.interactions.find((i) => i.personId === e.personId && i.date === date && !i.source && !i.link
+    const twin = d.interactions.find((i) => i.personId === e.personId && i.date === date && !i.source && !i.gmailKey
       && (sent ? ['email-out', 'thank-you', 'check-in'].includes(i.type) : i.type === 'email-in'));
-    if (twin) { twin.link = e.url; continue; }
+    if (twin) { twin.link = e.url; twin.gmailKey = e.key; added++; continue; }
     const it: Interaction = {
       id, personId: e.personId, date, type: sent ? 'email-out' : 'email-in',
-      summary: e.subject || (sent ? 'Email sent' : 'Email received'), takeaways: '', impression: null, link: e.url, source: 'gmail',
+      summary: e.subject || (sent ? 'Email sent' : 'Email received'), takeaways: '', impression: null, link: e.url, source: 'gmail', gmailKey: e.key,
     };
     d.interactions.push(it);
     added++;

@@ -84,6 +84,7 @@ export interface Interaction {
   takeaways: string;
   impression: number | null;
   link?: string;            // e.g. Gmail thread
+  gmailKey?: string;        // Gmail log entry this interaction came from or is linked to
   source?: 'gmail';
 }
 
