@@ -259,18 +259,46 @@ function assetBase_() {
   return 'https://cdn.jsdelivr.net/gh/' + repo + '@' + ref + '/release';
 }
 
-/** Latest commit SHA of the branch. Optional script property GITHUB_TOKEN (a read-only token) lifts GitHub's rate limit. */
+/**
+ * Latest commit SHA of the branch, from the first source that answers.
+ * GitHub's API rate-limits Google's shared IPs hard when unauthenticated, so the branch's public commit feed
+ * (github.com/…/commits/<branch>.atom, which has no API quota) is tried first; the API is the fallback, and uses the
+ * optional GITHUB_TOKEN script property if there is one (with a token the API goes first).
+ */
 function latestRef_(repo, branch) {
-  const headers = { Accept: 'application/vnd.github.sha', 'User-Agent': 'networking-tracker' };
   const token = props_().getProperty('GITHUB_TOKEN');
+  const sources = [fromFeed_, fromApi_];
+  if (token) sources.reverse();
+  const why = [];
+  for (let i = 0; i < sources.length; i++) {
+    const got = sources[i](repo, branch, token);
+    if (got.sha) return got;
+    why.push(got.status);
+  }
+  return { sha: '', status: why.join(' | ') };
+}
+
+function fromFeed_(repo, branch) {
+  try {
+    const res = UrlFetchApp.fetch('https://github.com/' + repo + '/commits/' + encodeURIComponent(branch) + '.atom', { muteHttpExceptions: true, headers: { 'User-Agent': 'networking-tracker' } });
+    const code = res.getResponseCode();
+    const m = /Grit::Commit\/([0-9a-f]{40})/.exec(res.getContentText());
+    return code === 200 && m ? { sha: m[1], status: code } : { sha: '', status: 'feed ' + code };
+  } catch (e) {
+    return { sha: '', status: 'feed ' + String(e) };
+  }
+}
+
+function fromApi_(repo, branch, token) {
+  const headers = { Accept: 'application/vnd.github.sha', 'User-Agent': 'networking-tracker' };
   if (token) headers.Authorization = 'Bearer ' + token;
   try {
     const res = UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/commits/' + branch, { headers: headers, muteHttpExceptions: true });
     const code = res.getResponseCode();
     const text = res.getContentText().trim();
-    return code === 200 && /^[0-9a-f]{6,40}$/.test(text) ? { sha: text, status: code } : { sha: '', status: code + ' ' + text.slice(0, 120) };
+    return code === 200 && /^[0-9a-f]{6,40}$/.test(text) ? { sha: text, status: code } : { sha: '', status: 'api ' + code + ' ' + text.slice(0, 100) };
   } catch (e) {
-    return { sha: '', status: String(e) };
+    return { sha: '', status: 'api ' + String(e) };
   }
 }
 
@@ -285,6 +313,6 @@ function refreshNow() {
     console.log('OK. The app will load commit ' + got.sha + ' on the next page load.');
   } else {
     console.log('GitHub did not return a commit: ' + got.status + '. The app is stuck on ' + (props_().getProperty('LAST_REF') || branch)
-      + '. Add a GITHUB_TOKEN script property (see Web-App-Setup) and run this again.');
+      + '. Try again in a minute; a GITHUB_TOKEN script property (see Web-App-Setup) also helps.');
   }
 }

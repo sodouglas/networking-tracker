@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const assert = require('assert');
 const src = fs.readFileSync(__dirname + '/Code.gs', 'utf8');
 
-function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetchCode = 200, noDocs = false } = {}) {
+function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetchCode = 200, noDocs = false, feed = null } = {}) {
   let lastHeaders = null; const logs = []; const moved = []; const doc = { kids: [], title: '', saved: false, chips: [] };
   const props = { FOLDER_ID: 'F1', ALLOWED_EMAILS: 'friend@gmail.com, owner@gmail.com', GITHUB_REPO: 'me/repo' };
   const cache = {};
@@ -69,7 +69,9 @@ function env({ user = 'friend@gmail.com', files = {}, fetchSha = 'abc123', fetch
     },
     CacheService: { getScriptCache: () => ({ get: (k) => cache[k] ?? null, put: (k, v, ttl) => { cache[k] = v; cache['ttl:' + k] = ttl; }, remove: (k) => { delete cache[k]; } }) },
     console: { log: (m) => logs.push(m), warn: (m) => logs.push(m) },
-    UrlFetchApp: { fetch: (url, opts) => { fetches++; lastHeaders = opts && opts.headers; assert(url.includes('/repos/me/repo/commits/main')); return { getResponseCode: () => fetchCode, getContentText: () => (fetchCode === 200 ? fetchSha + '\n' : '{"message":"API rate limit exceeded"}') }; } },
+    UrlFetchApp: { fetch: (url, opts) => { fetches++; lastHeaders = opts && opts.headers;
+      if (url === 'https://github.com/me/repo/commits/main.atom') return { getResponseCode: () => (feed ? 200 : 404), getContentText: () => (feed ? '<feed><entry><id>tag:github.com,2008:Grit::Commit/' + feed + '</id></entry></feed>' : 'Not Found') };
+      assert(url.includes('/repos/me/repo/commits/main')); return { getResponseCode: () => fetchCode, getContentText: () => (fetchCode === 200 ? fetchSha + '\n' : '{"message":"API rate limit exceeded"}') }; } },
     HtmlService: {
       createHtmlOutput: (h) => ({ html: h, setTitle() { return this; } }),
       createTemplateFromFile: () => ({ evaluate() { return { base: this.base, setTitle() { return this; }, addMetaTag() { return this; } }; } }),
@@ -94,7 +96,7 @@ console.log('allow-list ok');
 e = env();
 assert.equal(e.sb.doGet().base, 'https://cdn.jsdelivr.net/gh/me/repo@abc123/release');
 e.sb.doGet();
-assert.equal(e.fetches, 1, 'commit lookup cached');
+assert.equal(e.fetches, 2, 'commit lookup cached (one feed try + one API try, once)');
 // GitHub failing (rate limit): keep the last good commit, retry within a minute, say why in refreshNow
 e = env({ fetchCode: 403 });
 e.props.LAST_REF = 'oldsha1';
@@ -107,6 +109,16 @@ e = env(); e.props.GITHUB_TOKEN = 'tok';
 e.sb.doGet(); assert.equal(e.headers.Authorization, 'Bearer tok');
 assert.equal(e.props.LAST_REF, 'abc123');
 e.sb.refreshNow(); assert.equal(e.fetches, 2); assert(/commit abc123/.test(e.logs.join(' ')));
+// the commit feed has no API quota: used first, so a rate-limited API doesn't matter
+const SHA = 'f'.repeat(40);
+e = env({ fetchCode: 403, feed: SHA });
+assert.equal(e.sb.doGet().base, 'https://cdn.jsdelivr.net/gh/me/repo@' + SHA + '/release', 'feed works while the API is rate limited');
+assert.equal(e.fetches, 1, 'API not touched when the feed answers');
+e.sb.refreshNow(); assert(new RegExp('commit ' + SHA).test(e.logs.join(' ')), 'refreshNow succeeds via the feed');
+// with a token the API goes first, the feed is the fallback
+e = env({ fetchCode: 403, feed: SHA }); e.props.GITHUB_TOKEN = 'tok';
+assert.equal(e.sb.doGet().base, 'https://cdn.jsdelivr.net/gh/me/repo@' + SHA + '/release');
+assert.equal(e.fetches, 2);
 console.log('doGet ok');
 
 // load / save / conflict / backup
