@@ -91,7 +91,7 @@ export function PeopleList({ data }: { data: Data }) {
 }
 
 /** Whole-row tint for the statuses that need a glance. */
-const ROW_CLS: Record<string, string> = { 'Action required': 'row-red', 'Scheduling': 'row-yellow', 'Scheduled': 'row-green' };
+const ROW_CLS: Record<string, string> = { 'Action required': 'row-red', 'Scheduling': 'row-yellow', 'Scheduled': 'row-green', 'Thanked': 'row-green' };
 
 export function PersonDetail({ data, id }: { data: Data; id: string }) {
   const p = data.people.find((x) => x.id === id);

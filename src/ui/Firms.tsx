@@ -15,7 +15,7 @@ type Row = { f: Firm; s: ReturnType<typeof firmStats> };
 type Val = string | number | null;
 /** Sort order for the Status column: what needs attention first. */
 const STATUS_ORDER = ['Applied', 'Researching', 'Outreach Sent', 'Call Scheduled', 'Contacted', 'Interview', 'Offer', 'Not Started', 'Declined', 'Not Pursuing'];
-const ROW_CLS: Record<string, string> = { Applied: 'row-green' };
+const ROW_CLS: Record<string, string> = { Applied: 'row-green', Researching: 'row-yellow', Contacted: 'row-yellow' };
 /** Market filter defaults to NYC and remembers the last choice while the app is open. */
 let marketPref = 'NYC';
 const SORT_VALUE: Record<SortKey, (r: Row) => Val> = {
